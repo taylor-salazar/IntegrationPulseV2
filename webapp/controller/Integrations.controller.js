@@ -239,25 +239,50 @@ sap.ui.define([
 			}
 		},
 
-		onOpenIntegration: function (oEvent) {
-			var oCtx = oEvent.getSource().getBindingContext("integrationGroups") ||
-				oEvent.getSource().getBindingContext("selectedIntegrations") ||
-				oEvent.getSource().getBindingContext("integrations");
-			if (!oCtx) {
-				return;
+		_getIntegrationContext: function (oSource) {
+			var aModelNames = ["selectedIntegrations", "integrationGroups", "integrations"];
+			var oControl = oSource;
+			while (oControl) {
+				for (var i = 0; i < aModelNames.length; i += 1) {
+					var oCtx = oControl.getBindingContext && oControl.getBindingContext(aModelNames[i]);
+					if (oCtx && oCtx.getProperty("id")) {
+						return oCtx;
+					}
+				}
+				oControl = oControl.getParent && oControl.getParent();
 			}
-			this.navTo("integrationDetail", { id: oCtx.getProperty("id") });
+			return null;
+		},
+
+		_getIntegrationIdFromCustomData: function (oSource) {
+			var oControl = oSource;
+			while (oControl) {
+				if (oControl.data && oControl.data("integrationId")) {
+					return oControl.data("integrationId");
+				}
+				oControl = oControl.getParent && oControl.getParent();
+			}
+			return "";
+		},
+
+		onOpenIntegration: function (oEvent) {
+			var oCtx = this._getIntegrationContext(oEvent.getSource());
+			var sId = oCtx ? oCtx.getProperty("id") : this._getIntegrationIdFromCustomData(oEvent.getSource());
+			if (sId) {
+				this.navTo("integrationDetail", { id: sId });
+			}
 		},
 
 		onDeployFromCard: function (oEvent) {
-			var oCtx = oEvent.getSource().getBindingContext("integrationGroups") ||
-				oEvent.getSource().getBindingContext("selectedIntegrations") ||
-				oEvent.getSource().getBindingContext("integrations");
-			if (!oCtx) {
+			var oCtx = this._getIntegrationContext(oEvent.getSource());
+			var sId = oCtx ? oCtx.getProperty("id") : this._getIntegrationIdFromCustomData(oEvent.getSource());
+			var oIntegration = oCtx ? oCtx.getObject() : this._aAllItems.filter(function (oItem) {
+				return oItem.id === sId;
+			})[0];
+			if (!oIntegration) {
 				return;
 			}
 
-			var oIntegration = oCtx.getObject();
 			MessageBox.confirm(this.getText("quickDeployConfirmText", [oIntegration.name]), {
 				title: this.getText("deployConfirmTitle"),
 				icon: MessageBox.Icon.WARNING,

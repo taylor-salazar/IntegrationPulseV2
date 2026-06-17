@@ -3,6 +3,7 @@
 	xmlns:mvc="sap.ui.core.mvc"
 	xmlns="sap.m"
 	xmlns:f="sap.f"
+	xmlns:core="sap.ui.core"
 	height="100%">
 
 	<Page id="integrationsPage" title="{i18n>integrationsTitle}" showHeader="true" class="ipPage">
@@ -94,6 +95,9 @@
 							header="{selectedIntegrations>name}"
 							subheader="{selectedIntegrations>routeText}"
 							press=".onOpenIntegration">
+							<customData>
+								<core:CustomData key="integrationId" value="{selectedIntegrations>id}"/>
+							</customData>
 							<tileContent>
 								<TileContent unit="v{selectedIntegrations>version}" footer="{selectedIntegrations>parameterCount} parameters">
 									<content>
@@ -132,6 +136,9 @@
 									</columns>
 									<items>
 										<ColumnListItem type="Navigation" press=".onOpenIntegration">
+											<customData>
+												<core:CustomData key="integrationId" value="{selectedIntegrations>id}"/>
+											</customData>
 											<cells>
 												<ObjectIdentifier title="{selectedIntegrations>name}" text="{selectedIntegrations>id}"/>
 												<Text text="{selectedIntegrations>senderDisplay}"/>
