@@ -45,8 +45,8 @@ html, body, #content {
 }
 
 .ipIntegrationGroups {
-	padding: 1rem;
-	gap: 0.75rem;
+	padding: 1rem 1rem 1.25rem 1rem;
+	gap: 0.5rem;
 }
 
 .ipIntegrationNav {
@@ -56,14 +56,14 @@ html, body, #content {
 .ipCategoryTile,
 .ipIntegrationGroup {
 	box-sizing: border-box;
-	width: calc((100% - 2.25rem) / 4);
-	min-width: 18rem;
+	width: 14.75rem;
+	min-width: 14.75rem;
 	margin-bottom: 0;
 	overflow: hidden;
 }
 
-.ipCategoryTile.sapMGT {
-	height: 13rem;
+.ipCategoryTile.sapMCustomTile {
+	height: 13.75rem;
 	cursor: pointer;
 	border: 1px solid var(--sapTile_BorderColor, #d9dfe5);
 	border-radius: 0.75rem;
@@ -72,49 +72,43 @@ html, body, #content {
 	transition: box-shadow 0.15s ease-in-out, transform 0.15s ease-in-out, border-color 0.15s ease-in-out;
 }
 
-.ipCategoryTile.sapMGT:hover,
-.ipCategoryTile.sapMGT:focus {
+.ipCategoryTile.sapMCustomTile:hover,
+.ipCategoryTile.sapMCustomTile:focus {
 	border-color: var(--sapContent_FocusColor, #0070f2);
 	box-shadow: var(--sapContent_Shadow1, 0 0.25rem 0.875rem rgba(34, 53, 72, 0.2));
 	transform: translateY(-1px);
 }
 
-.ipCategoryTile .sapMGTContent {
+.ipCategoryTileInner {
+	box-sizing: border-box;
+	padding: 1.25rem 1.25rem 1rem 1.25rem;
+	width: 100%;
 	height: 100%;
 }
 
-.ipCategoryTile .sapMGT.OneByOne,
-.ipCategoryTile .sapMGTContent,
-.ipCategoryTile .sapMTileCnt {
-	width: 100%;
-}
-
-.ipCategoryTile .sapMGTHeader {
+.ipCategoryTileTitle {
 	font-size: 1rem;
 	font-weight: 700;
 	line-height: 1.15;
 	color: var(--sapGroup_TitleTextColor, #1d2d3e);
 }
 
-.ipCategoryTile .sapMGTSubHdrTxt {
+.ipCategoryTileSubtitle {
 	font-size: 0.875rem;
+	line-height: 1.15;
 	color: var(--sapContent_LabelColor, #6a7d90);
 }
 
-.ipCategoryTile .sapMNC {
-	height: 6rem;
-	margin-top: 1.25rem;
-	text-align: right;
-}
-
-.ipCategoryTile .sapMNCValue {
-	font-size: 4.25rem;
+.ipCategoryTileCount {
+	font-size: 3.75rem;
+	line-height: 0.9;
 	font-weight: 300;
 	color: var(--sapContent_NonInteractiveIconColor, #8398af);
 }
 
-.ipCategoryTile .sapMTileCntFtrTxt {
+.ipCategoryTileFooter {
 	font-size: 0.875rem;
+	line-height: 1.2;
 	color: var(--sapContent_LabelColor, #536b84);
 }
 
@@ -177,7 +171,6 @@ html, body, #content {
 }
 
 @media (max-width: 1300px) {
-	.ipCategoryTile,
 	.ipIntegrationGroup {
 		width: calc((100% - 1.5rem) / 3);
 	}
@@ -197,7 +190,6 @@ html, body, #content {
 }
 
 @media (max-width: 1000px) {
-	.ipCategoryTile,
 	.ipIntegrationGroup {
 		width: calc((100% - 0.75rem) / 2);
 	}

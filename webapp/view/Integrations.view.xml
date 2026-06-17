@@ -49,20 +49,24 @@
 								wrap="Wrap"
 								renderType="Bare"
 								items="{integrationGroups>/groups}">
-								<GenericTile
+								<CustomTile
 									class="ipCategoryTile"
-									frameType="OneByOne"
-									header="{integrationGroups>title}"
-									subheader="{= ${view>/groupBy} === 'receiver' ? ${i18n>targetSystemCategory} : ${i18n>sourceSystemCategory} }"
 									press=".onOpenGroup">
-									<tileContent>
-										<TileContent footer="{i18n>integrationsCategoryFooter}">
-											<content>
-												<NumericContent value="{integrationGroups>count}"/>
-											</content>
-										</TileContent>
-									</tileContent>
-								</GenericTile>
+									<content>
+										<VBox class="ipCategoryTileInner" height="100%" justifyContent="SpaceBetween">
+											<VBox>
+												<Text text="{integrationGroups>title}" class="ipCategoryTileTitle"/>
+												<Text
+													text="{= ${view>/groupBy} === 'receiver' ? ${i18n>targetSystemCategory} : ${i18n>sourceSystemCategory} }"
+													class="ipCategoryTileSubtitle"/>
+											</VBox>
+											<HBox alignItems="End" justifyContent="SpaceBetween" width="100%">
+												<Text text="{i18n>integrationsCategoryFooter}" class="ipCategoryTileFooter"/>
+												<Text text="{integrationGroups>count}" class="ipCategoryTileCount"/>
+											</HBox>
+										</VBox>
+									</content>
+								</CustomTile>
 							</FlexBox>
 						</content>
 					</Page>
