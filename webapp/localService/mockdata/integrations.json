@@ -1,5 +1,5 @@
 {
-	"comment": "Mock of SAP BTP GET /api/v1/IntegrationRuntimeArtifacts (+ designtime metadata). Replace via backend/btp_client.py.",
+	"comment": "Mock of SAP BTP GET /api/v1/IntegrationRuntimeArtifacts. Integrations list should only contain deployed/runtime artifacts.",
 	"value": [
 		{
 			"id": "SF_EC_to_Vendor_Employee_File",
@@ -7,6 +7,8 @@
 			"packageName": "SuccessFactors EC Outbound",
 			"version": "1.4.2",
 			"status": "STARTED",
+			"sender": "SuccessFactors EC",
+			"receiver": "Vendor SFTP",
 			"description": "Daily delta extract of Employee Central worker master data delivered to the vendor SFTP as a pipe-delimited file.",
 			"parameterCount": 11,
 			"lastDeployed": "2026-06-11T22:14:00Z"
@@ -17,6 +19,8 @@
 			"packageName": "SuccessFactors EC Outbound",
 			"version": "2.0.0",
 			"status": "STARTED",
+			"sender": "SuccessFactors EC",
+			"receiver": "Payroll",
 			"description": "Full-mode payroll extract with compensation and recurring pay components.",
 			"parameterCount": 9,
 			"lastDeployed": "2026-06-10T03:05:00Z"
@@ -27,6 +31,8 @@
 			"packageName": "Finance Master Data",
 			"version": "1.1.0",
 			"status": "ERROR",
+			"sender": "S/4HANA",
+			"receiver": "SuccessFactors EC",
 			"description": "Inbound cost center replication from S/4HANA into Employee Central foundation objects.",
 			"parameterCount": 7,
 			"lastDeployed": "2026-06-09T11:40:00Z"
@@ -37,6 +43,8 @@
 			"packageName": "Talent Suite",
 			"version": "3.2.1",
 			"status": "STARTED",
+			"sender": "Recruiting",
+			"receiver": "Onboarding",
 			"description": "Moves new hire data from Recruiting to Onboarding 2.0 on offer acceptance.",
 			"parameterCount": 8,
 			"lastDeployed": "2026-06-12T06:02:00Z"
@@ -47,6 +55,8 @@
 			"packageName": "Identity & Access",
 			"version": "0.9.5",
 			"status": "STOPPED",
+			"sender": "SuccessFactors EC",
+			"receiver": "Identity Provider",
 			"description": "Synchronises organisational assignments to the corporate IdP for role provisioning.",
 			"parameterCount": 6,
 			"lastDeployed": "2026-05-30T18:20:00Z"
@@ -57,6 +67,8 @@
 			"packageName": "Benefits Integration",
 			"version": "1.0.3",
 			"status": "STARTING",
+			"sender": "Compensation",
+			"receiver": "Benefits Vendor",
 			"description": "Annual and ad-hoc compensation feed to the external benefits administration platform.",
 			"parameterCount": 10,
 			"lastDeployed": "2026-06-12T05:55:00Z"

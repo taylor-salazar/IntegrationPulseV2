@@ -90,6 +90,9 @@ sap.ui.define([
 			name: oRaw.Name || oRaw.name || oRaw.Id || oRaw.id || "",
 			designTimeId: oRaw.IntegrationDesigntimeArtifactId || oRaw.DesigntimeArtifactId ||
 				oRaw.DesignTimeArtifactId || oRaw.ArtifactId || oRaw.Name || oRaw.Id || oRaw.id || "",
+			isRuntimeArtifact: oRaw.isRuntimeArtifact !== false,
+			sender: oRaw.Sender || oRaw.sender || oRaw.SourceSystem || oRaw.sourceSystem || oRaw.Source || oRaw.source || "",
+			receiver: oRaw.Receiver || oRaw.receiver || oRaw.TargetSystem || oRaw.targetSystem || oRaw.Target || oRaw.target || "",
 			packageName: oRaw.PackageId || oRaw.PackageName || oRaw.packageName || "",
 			version: oRaw.Version || oRaw.version || "",
 			status: oRaw.Status || oRaw.status || "STOPPED",
@@ -97,6 +100,12 @@ sap.ui.define([
 			parameterCount: oRaw.parameterCount || 0,
 			lastDeployed: oRaw.DeployedOn || oRaw.LastDeployedOn || oRaw.lastDeployed || null
 		};
+	}
+
+	function runtimeArtifactsOnly(aItems) {
+		return (aItems || []).filter(function (oItem) {
+			return oItem && oItem.id && oItem.isRuntimeArtifact !== false;
+		});
 	}
 
 	function mapConfiguration(oRaw) {
@@ -148,7 +157,7 @@ sap.ui.define([
 
 	function getDestinationIntegrations() {
 		return getJSON(getDestinationUrl("/IntegrationRuntimeArtifacts")).then(function (d) {
-			return odataResults(d).map(mapIntegration);
+			return runtimeArtifactsOnly(odataResults(d).map(mapIntegration));
 		});
 	}
 
@@ -267,13 +276,15 @@ sap.ui.define([
 		getIntegrations: function () {
 			if (USE_MOCK) {
 				return getJSON(MOCK_ROOT + "/integrations.json").then(function (d) {
-					return delay(250).then(function () { return d.value; });
+					return delay(250).then(function () { return runtimeArtifactsOnly((d.value || []).map(mapIntegration)); });
 				});
 			}
 			if (LIVE_MODE === "destination") {
 				return getDestinationIntegrations();
 			}
-			return getJSON(config.backendBaseUrl + "/api/integrations");
+			return getJSON(config.backendBaseUrl + "/api/integrations").then(function (aItems) {
+				return runtimeArtifactsOnly((aItems || []).map(mapIntegration));
+			});
 		},
 
 		/**

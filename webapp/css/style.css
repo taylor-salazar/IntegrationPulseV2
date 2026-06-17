@@ -44,6 +44,18 @@ html, body, #content {
 	cursor: pointer;
 }
 
+.ipIntegrationGroups {
+	padding: 0.75rem 1rem 1rem 1rem;
+}
+
+.ipIntegrationGroup {
+	margin-bottom: 0.75rem;
+}
+
+.ipGroupedCardGrid {
+	margin: 0.75rem 0;
+}
+
 /* KPI tiles on the monitoring page */
 .ipKpiTile {
 	width: 9rem;

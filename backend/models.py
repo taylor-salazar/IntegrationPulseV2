@@ -19,6 +19,9 @@ class Integration(BaseModel):
     description: str = ""
     parameterCount: int = 0
     lastDeployed: Optional[str] = None
+    isRuntimeArtifact: bool = True
+    sender: str = ""
+    receiver: str = ""
 
 
 class Configuration(BaseModel):

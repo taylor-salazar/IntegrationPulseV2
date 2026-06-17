@@ -84,6 +84,9 @@ async def list_integrations() -> List[Integration]:
             description=r.get("Description", ""),
             parameterCount=0,  # filled by a follow-up Configurations call if needed
             lastDeployed=r.get("DeployedOn"),
+            isRuntimeArtifact=True,
+            sender=r.get("Sender", ""),
+            receiver=r.get("Receiver", ""),
         )
         for r in results
     ]

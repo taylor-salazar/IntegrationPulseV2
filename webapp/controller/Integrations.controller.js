@@ -1,24 +1,26 @@
 sap.ui.define([
 	"integrationpulse/controller/BaseController",
 	"sap/ui/model/json/JSONModel",
-	"sap/ui/model/Filter",
-	"sap/ui/model/FilterOperator",
 	"integrationpulse/service/BackendClient",
 	"sap/m/MessageToast",
 	"sap/m/MessageBox"
-], function (BaseController, JSONModel, Filter, FilterOperator, BackendClient, MessageToast, MessageBox) {
+], function (BaseController, JSONModel, BackendClient, MessageToast, MessageBox) {
 	"use strict";
 
 	return BaseController.extend("integrationpulse.controller.Integrations", {
 
 		onInit: function () {
 			this.setModel(new JSONModel({ items: [] }), "integrations");
+			this.setModel(new JSONModel({ groups: [] }), "integrationGroups");
 			this.setModel(new JSONModel({
 				viewMode: "cards",
+				groupBy: "sender",
 				isMock: BackendClient.isMock(),
 				busy: false,
 				deployingId: ""
 			}), "view");
+			this._aAllItems = [];
+			this._sSearchQuery = "";
 
 			this.getRouter().getRoute("integrations").attachPatternMatched(this._onMatched, this);
 		},
@@ -31,7 +33,9 @@ sap.ui.define([
 			var oData = this.getModel("integrations");
 			this.getView().setBusy(true);
 			BackendClient.getIntegrations().then(function (aItems) {
-				oData.setProperty("/items", this._filterRuntimeArtifacts(aItems));
+				this._aAllItems = this._prepareRuntimeArtifacts(this._filterRuntimeArtifacts(aItems));
+				oData.setProperty("/items", this._aAllItems);
+				this._applyGrouping();
 				this.getView().setBusy(false);
 			}.bind(this)).catch(function (oErr) {
 				this.getView().setBusy(false);
@@ -51,6 +55,65 @@ sap.ui.define([
 			});
 		},
 
+		_prepareRuntimeArtifacts: function (aItems) {
+			var sUnknown = this.getText("unknownSystem");
+			return (aItems || []).map(function (oItem) {
+				oItem.sender = oItem.sender || sUnknown;
+				oItem.receiver = oItem.receiver || sUnknown;
+				oItem.routeText = oItem.sender + " -> " + oItem.receiver;
+				return oItem;
+			});
+		},
+
+		_groupItems: function (aItems, sGroupBy) {
+			var mGroups = {};
+			var sFallback = this.getText("unknownSystem");
+			(aItems || []).forEach(function (oItem) {
+				var sGroup = oItem[sGroupBy] || sFallback;
+				if (!mGroups[sGroup]) {
+					mGroups[sGroup] = {
+						key: sGroup,
+						title: sGroup,
+						count: 0,
+						items: []
+					};
+				}
+				mGroups[sGroup].items.push(oItem);
+				mGroups[sGroup].count += 1;
+			});
+			return Object.keys(mGroups).sort().map(function (sKey) {
+				mGroups[sKey].items.sort(function (a, b) {
+					return String(a.name || "").localeCompare(String(b.name || ""));
+				});
+				return mGroups[sKey];
+			});
+		},
+
+		_matchesSearch: function (oItem, sQuery) {
+			if (!sQuery) {
+				return true;
+			}
+			var sNeedle = sQuery.toLowerCase();
+			return [
+				oItem.name,
+				oItem.packageName,
+				oItem.id,
+				oItem.sender,
+				oItem.receiver
+			].some(function (sValue) {
+				return String(sValue || "").toLowerCase().indexOf(sNeedle) > -1;
+			});
+		},
+
+		_applyGrouping: function () {
+			var sGroupBy = this.getModel("view").getProperty("/groupBy") || "sender";
+			var aFiltered = this._aAllItems.filter(function (oItem) {
+				return this._matchesSearch(oItem, this._sSearchQuery);
+			}.bind(this));
+			this.getModel("integrations").setProperty("/items", aFiltered);
+			this.getModel("integrationGroups").setProperty("/groups", this._groupItems(aFiltered, sGroupBy));
+		},
+
 		onRefresh: function () {
 			this._loadData();
 		},
@@ -59,37 +122,28 @@ sap.ui.define([
 			this.getModel("view").setProperty("/viewMode", oEvent.getParameter("item").getKey());
 		},
 
+		onGroupByChange: function (oEvent) {
+			this.getModel("view").setProperty("/groupBy", oEvent.getParameter("item").getKey());
+			this._applyGrouping();
+		},
+
 		onSearch: function (oEvent) {
-			var sQuery = oEvent.getParameter("query") || oEvent.getParameter("newValue") || "";
-			var aFilters = [];
-			if (sQuery) {
-				aFilters.push(new Filter({
-					filters: [
-						new Filter("name", FilterOperator.Contains, sQuery),
-						new Filter("packageName", FilterOperator.Contains, sQuery),
-						new Filter("id", FilterOperator.Contains, sQuery)
-					],
-					and: false
-				}));
-			}
-			// Apply to whichever aggregation is visible.
-			var oTable = this.byId("integrationsTable");
-			if (oTable && oTable.getBinding("items")) {
-				oTable.getBinding("items").filter(aFilters);
-			}
-			var oGrid = this.byId("cardsContainer");
-			if (oGrid && oGrid.getBinding("items")) {
-				oGrid.getBinding("items").filter(aFilters);
-			}
+			this._sSearchQuery = oEvent.getParameter("query") || oEvent.getParameter("newValue") || "";
+			this._applyGrouping();
 		},
 
 		onOpenIntegration: function (oEvent) {
-			var oCtx = oEvent.getSource().getBindingContext("integrations");
+			var oCtx = oEvent.getSource().getBindingContext("integrationGroups") ||
+				oEvent.getSource().getBindingContext("integrations");
+			if (!oCtx) {
+				return;
+			}
 			this.navTo("integrationDetail", { id: oCtx.getProperty("id") });
 		},
 
 		onDeployFromCard: function (oEvent) {
-			var oCtx = oEvent.getSource().getBindingContext("integrations");
+			var oCtx = oEvent.getSource().getBindingContext("integrationGroups") ||
+				oEvent.getSource().getBindingContext("integrations");
 			if (!oCtx) {
 				return;
 			}
@@ -127,15 +181,14 @@ sap.ui.define([
 			if (!sStatus) {
 				return;
 			}
-			var oModel = this.getModel("integrations");
-			var aItems = oModel.getProperty("/items") || [];
-			aItems.some(function (oItem, iIndex) {
+			this._aAllItems.some(function (oItem) {
 				if (oItem.id === sId) {
-					oModel.setProperty("/items/" + iIndex + "/status", sStatus);
+					oItem.status = sStatus;
 					return true;
 				}
 				return false;
 			});
+			this._applyGrouping();
 		}
 	});
 });

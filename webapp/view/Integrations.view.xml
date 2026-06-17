@@ -3,7 +3,6 @@
 	xmlns:mvc="sap.ui.core.mvc"
 	xmlns="sap.m"
 	xmlns:f="sap.f"
-	xmlns:core="sap.ui.core"
 	height="100%">
 
 	<Page id="integrationsPage" title="{i18n>integrationsTitle}" showHeader="true" class="ipPage">
@@ -17,6 +16,12 @@
 					placeholder="{i18n>searchIntegrations}"
 					search=".onSearch"
 					liveChange=".onSearch"/>
+				<SegmentedButton selectedKey="{view>/groupBy}" selectionChange=".onGroupByChange">
+					<items>
+						<SegmentedButtonItem key="sender" text="{i18n>sortBySourceSystem}"/>
+						<SegmentedButtonItem key="receiver" text="{i18n>sortByTargetSystem}"/>
+					</items>
+				</SegmentedButton>
 				<SegmentedButton selectedKey="{view>/viewMode}" selectionChange=".onViewModeChange">
 					<items>
 						<SegmentedButtonItem key="cards" icon="sap-icon://grid" tooltip="{i18n>viewTiles}"/>
@@ -35,81 +40,84 @@
 				showIcon="true"
 				class="sapUiSmallMarginBegin sapUiSmallMarginEnd sapUiSmallMarginTop"/>
 
-			<!-- Cards view -->
-			<f:GridContainer
-				id="cardsContainer"
-				visible="{= ${view>/viewMode} === 'cards' }"
-				snapToRow="true"
-				class="sapUiSmallMargin"
-				items="{
-					path: 'integrations>/items',
-					sorter: { path: 'name' }
-				}">
-				<f:layout>
-					<f:GridContainerSettings rowSize="11rem" columnSize="11rem" gap="1rem"/>
-				</f:layout>
-				<f:items>
-					<GenericTile
-						class="ipCard"
-						header="{integrations>name}"
-						subheader="{integrations>packageName}"
-						press=".onOpenIntegration">
-						<tileContent>
-							<TileContent unit="v{integrations>version}" footer="{integrations>parameterCount} parameters">
-								<content>
-									<HBox alignItems="Center" justifyContent="SpaceBetween" width="100%">
-										<ObjectStatus
-											class="sapUiTinyMarginBegin"
-											text="{integrations>status}"
-											state="{path: 'integrations>status', formatter: '.formatter.statusState'}"
-											icon="{path: 'integrations>status', formatter: '.formatter.statusIcon'}"/>
-										<Button
-											icon="sap-icon://upload-to-cloud"
-											type="Transparent"
-											tooltip="{i18n>quickDeploy}"
-											enabled="{= ${view>/deployingId} !== ${integrations>id} }"
-											press=".onDeployFromCard"/>
-									</HBox>
-								</content>
-							</TileContent>
-						</tileContent>
-					</GenericTile>
-				</f:items>
-			</f:GridContainer>
+			<VBox
+				class="ipIntegrationGroups"
+				items="{integrationGroups>/groups}">
+				<Panel
+					headerText="{= ${integrationGroups>title} + ' (' + ${integrationGroups>count} + ')' }"
+					expandable="true"
+					expanded="true"
+					class="ipPanel ipIntegrationGroup">
+					<content>
+						<f:GridContainer
+							visible="{= ${view>/viewMode} === 'cards' }"
+							snapToRow="true"
+							class="ipGroupedCardGrid"
+							items="{integrationGroups>items}">
+							<f:layout>
+								<f:GridContainerSettings rowSize="11rem" columnSize="11rem" gap="0.75rem"/>
+							</f:layout>
+							<f:items>
+								<GenericTile
+									class="ipCard"
+									header="{integrationGroups>name}"
+									subheader="{integrationGroups>routeText}"
+									press=".onOpenIntegration">
+									<tileContent>
+										<TileContent unit="v{integrationGroups>version}" footer="{integrationGroups>parameterCount} parameters">
+											<content>
+												<HBox alignItems="Center" justifyContent="SpaceBetween" width="100%">
+													<ObjectStatus
+														class="sapUiTinyMarginBegin"
+														text="{integrationGroups>status}"
+														state="{path: 'integrationGroups>status', formatter: '.formatter.statusState'}"
+														icon="{path: 'integrationGroups>status', formatter: '.formatter.statusIcon'}"/>
+													<Button
+														icon="sap-icon://upload-to-cloud"
+														type="Transparent"
+														tooltip="{i18n>quickDeploy}"
+														enabled="{= ${view>/deployingId} !== ${integrationGroups>id} }"
+														press=".onDeployFromCard"/>
+												</HBox>
+											</content>
+										</TileContent>
+									</tileContent>
+								</GenericTile>
+							</f:items>
+						</f:GridContainer>
 
-			<!-- List view -->
-			<Table
-				id="integrationsTable"
-				visible="{= ${view>/viewMode} === 'list' }"
-				growing="true"
-				growingThreshold="50"
-				class="sapUiSmallMarginBegin sapUiSmallMarginEnd"
-				items="{
-					path: 'integrations>/items',
-					sorter: { path: 'name' }
-				}">
-				<columns>
-					<Column><Text text="{i18n>colName}"/></Column>
-					<Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colPackage}"/></Column>
-					<Column hAlign="Center" minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colVersion}"/></Column>
-					<Column hAlign="Center"><Text text="{i18n>colStatus}"/></Column>
-					<Column minScreenWidth="Desktop" demandPopin="true"><Text text="{i18n>colLastDeployed}"/></Column>
-				</columns>
-				<items>
-					<ColumnListItem type="Navigation" press=".onOpenIntegration">
-						<cells>
-							<ObjectIdentifier title="{integrations>name}" text="{integrations>id}"/>
-							<Text text="{integrations>packageName}"/>
-							<Text text="v{integrations>version}"/>
-							<ObjectStatus
-								text="{integrations>status}"
-								state="{path: 'integrations>status', formatter: '.formatter.statusState'}"
-								icon="{path: 'integrations>status', formatter: '.formatter.statusIcon'}"/>
-							<Text text="{path: 'integrations>lastDeployed', formatter: '.formatter.dateTime'}"/>
-						</cells>
-					</ColumnListItem>
-				</items>
-			</Table>
+						<Table
+							visible="{= ${view>/viewMode} === 'list' }"
+							growing="true"
+							growingThreshold="50"
+							items="{integrationGroups>items}">
+							<columns>
+								<Column><Text text="{i18n>colName}"/></Column>
+								<Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colSourceSystem}"/></Column>
+								<Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colTargetSystem}"/></Column>
+								<Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colPackage}"/></Column>
+								<Column hAlign="Center" minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colVersion}"/></Column>
+								<Column hAlign="Center"><Text text="{i18n>colStatus}"/></Column>
+							</columns>
+							<items>
+								<ColumnListItem type="Navigation" press=".onOpenIntegration">
+									<cells>
+										<ObjectIdentifier title="{integrationGroups>name}" text="{integrationGroups>id}"/>
+										<Text text="{integrationGroups>sender}"/>
+										<Text text="{integrationGroups>receiver}"/>
+										<Text text="{integrationGroups>packageName}"/>
+										<Text text="v{integrationGroups>version}"/>
+										<ObjectStatus
+											text="{integrationGroups>status}"
+											state="{path: 'integrationGroups>status', formatter: '.formatter.statusState'}"
+											icon="{path: 'integrationGroups>status', formatter: '.formatter.statusIcon'}"/>
+									</cells>
+								</ColumnListItem>
+							</items>
+						</Table>
+					</content>
+				</Panel>
+			</VBox>
 		</content>
 	</Page>
 </mvc:View>
