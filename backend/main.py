@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from config import SETTINGS
-from routers import integrations, monitoring
+from routers import integrations, monitoring, payloads
 
 app = FastAPI(
     title="Integration Pulse API",
@@ -61,3 +61,4 @@ async def runtime_error_handler(_request: Request, exc: RuntimeError):
 
 app.include_router(integrations.router)
 app.include_router(monitoring.router)
+app.include_router(payloads.router)

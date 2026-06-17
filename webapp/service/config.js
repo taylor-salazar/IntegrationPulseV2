@@ -9,6 +9,8 @@ sap.ui.define([], function () {
 	 *  liveMode     - "destination" => call /api/v1 through BTP/UI5 destination routing
 	 *                 "proxy"       => call the FastAPI proxy at backendBaseUrl
 	 *  destinationBaseUrl - same-origin BTP destination route for SAP Integration Suite
+	 *  payloadBaseUrl - custom payload service route. In BTP, route this to the
+	 *                   payload receiver service, not the Integration Suite destination.
 	 *  backendBaseUrl - base URL of the optional FastAPI proxy (see ../../backend).
 	 *
 	 * Runtime overrides:
@@ -22,6 +24,7 @@ sap.ui.define([], function () {
 		useMock: true,
 		liveMode: "destination",
 		destinationBaseUrl: "/api/v1",
+		payloadBaseUrl: "/payload-api/v1",
 		backendBaseUrl: "http://localhost:8000"
 	};
 });

@@ -2,9 +2,10 @@ sap.ui.define([
 	"integrationpulse/controller/BaseController",
 	"sap/ui/model/json/JSONModel",
 	"integrationpulse/service/BackendClient",
+	"sap/ui/core/Fragment",
 	"sap/m/MessageToast",
 	"sap/m/MessageBox"
-], function (BaseController, JSONModel, BackendClient, MessageToast, MessageBox) {
+], function (BaseController, JSONModel, BackendClient, Fragment, MessageToast, MessageBox) {
 	"use strict";
 
 	// Human labels for the enterprise parameter group prefixes.
@@ -23,6 +24,8 @@ sap.ui.define([
 		onInit: function () {
 			this.setModel(new JSONModel({}), "integration");
 			this.setModel(new JSONModel({ groups: [] }), "parameters");
+			this.setModel(new JSONModel({ items: [] }), "payloads");
+			this.setModel(new JSONModel({}), "payloadDetail");
 			this.setModel(new JSONModel({ busy: false, dirty: false }), "detailView");
 
 			this.getRouter().getRoute("integrationDetail").attachPatternMatched(this._onMatched, this);
@@ -41,12 +44,15 @@ sap.ui.define([
 
 			Promise.all([
 				BackendClient.getIntegration(this._sId),
-				BackendClient.getConfigurations(this._sId)
+				BackendClient.getConfigurations(this._sId),
+				BackendClient.getPayloads(this._sId)
 			]).then(function (aRes) {
 				var oIntegration = aRes[0] || {};
 				var aConfigs = aRes[1] || [];
+				var aPayloads = aRes[2] || [];
 				that.getModel("integration").setData(oIntegration);
 				that.getModel("parameters").setData({ groups: that._groupParams(aConfigs) });
+				that.getModel("payloads").setProperty("/items", aPayloads);
 				that.getModel("detailView").setProperty("/busy", false);
 			}).catch(function (oErr) {
 				that.getModel("detailView").setProperty("/busy", false);
@@ -183,8 +189,81 @@ sap.ui.define([
 			});
 		},
 
+		onOpenPayload: function (oEvent) {
+			var oCtx = oEvent.getSource().getBindingContext("payloads");
+			var oPayload = oCtx && oCtx.getObject();
+			if (!oPayload) {
+				return;
+			}
+			if (oPayload.downloadOnly || !oPayload.previewAvailable) {
+				window.open(BackendClient.getPayloadDownloadUrl(oPayload.id), "_blank", "noopener");
+				return;
+			}
+			BackendClient.getPayload(oPayload.id).then(function (oDetail) {
+				if (!oDetail) {
+					MessageToast.show(this.getText("payloadNotFound"));
+					return;
+				}
+				oDetail.formattedPayload = this._formatPayload(oDetail.payload, oDetail.contentType);
+				this.getModel("payloadDetail").setData(oDetail);
+				this._openPayloadDialog();
+			}.bind(this)).catch(function (oErr) {
+				MessageToast.show(this.getText("payloadLoadFailed", [oErr.message]));
+			}.bind(this));
+		},
+
+		onDownloadPayload: function () {
+			var sId = this.getModel("payloadDetail").getProperty("/id");
+			if (sId) {
+				window.open(BackendClient.getPayloadDownloadUrl(sId), "_blank", "noopener");
+			}
+		},
+
+		onClosePayloadDialog: function () {
+			if (this._oPayloadDialog) {
+				this._oPayloadDialog.close();
+			}
+		},
+
+		_openPayloadDialog: function () {
+			if (this._oPayloadDialog) {
+				this._oPayloadDialog.open();
+				return;
+			}
+			Fragment.load({
+				id: this.getView().getId(),
+				name: "integrationpulse.view.PayloadDialog",
+				controller: this
+			}).then(function (oDialog) {
+				this._oPayloadDialog = oDialog;
+				this.getView().addDependent(oDialog);
+				oDialog.open();
+			}.bind(this));
+		},
+
+		_formatPayload: function (sPayload, sContentType) {
+			if (!sPayload) {
+				return "";
+			}
+			if ((sContentType || "").indexOf("json") > -1) {
+				try {
+					return JSON.stringify(JSON.parse(sPayload), null, 2);
+				} catch (e) {
+					return sPayload;
+				}
+			}
+			return sPayload;
+		},
+
 		onNavBack: function () {
 			this.navTo("integrations");
+		},
+
+		onExit: function () {
+			if (this._oPayloadDialog) {
+				this._oPayloadDialog.destroy();
+				this._oPayloadDialog = null;
+			}
 		}
 	});
 });

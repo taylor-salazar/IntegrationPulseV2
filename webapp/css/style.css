@@ -57,3 +57,10 @@ html, body, #content {
 .ipPage .sapMPageHeader .sapMTitle {
 	font-weight: 600;
 }
+
+.ipPayloadViewer textarea {
+	font-family: "72Mono", "Courier New", monospace;
+	font-size: 0.8125rem;
+	line-height: 1.4;
+	white-space: pre;
+}

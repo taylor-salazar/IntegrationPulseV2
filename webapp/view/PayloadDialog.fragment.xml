@@ -1,0 +1,42 @@
+<core:FragmentDefinition
+	xmlns="sap.m"
+	xmlns:core="sap.ui.core">
+	<Dialog
+		id="payloadDialog"
+		title="{payloadDetail>/fileName}"
+		contentWidth="70rem"
+		contentHeight="42rem"
+		resizable="true"
+		draggable="true">
+		<content>
+			<VBox class="sapUiContentPadding">
+				<HBox wrap="Wrap" class="sapUiSmallMarginBottom">
+					<VBox class="sapUiMediumMarginEnd">
+						<Label text="{i18n>colPayloadType}"/>
+						<Text text="{payloadDetail>/contentType}"/>
+					</VBox>
+					<VBox class="sapUiMediumMarginEnd">
+						<Label text="{i18n>colPayloadSize}"/>
+						<ObjectNumber number="{path: 'payloadDetail>/sizeBytes', formatter: '.formatter.bytes'}"/>
+					</VBox>
+					<VBox>
+						<Label text="{i18n>colPayloadCreated}"/>
+						<Text text="{path: 'payloadDetail>/createdAt', formatter: '.formatter.dateTime'}"/>
+					</VBox>
+				</HBox>
+				<TextArea
+					value="{payloadDetail>/formattedPayload}"
+					editable="false"
+					width="100%"
+					height="34rem"
+					class="ipPayloadViewer"/>
+			</VBox>
+		</content>
+		<beginButton>
+			<Button text="{i18n>downloadPayload}" icon="sap-icon://download" press=".onDownloadPayload"/>
+		</beginButton>
+		<endButton>
+			<Button text="{i18n>close}" press=".onClosePayloadDialog"/>
+		</endButton>
+	</Dialog>
+</core:FragmentDefinition>

@@ -1,0 +1,43 @@
+{
+	"Execution_Manager": [
+		{
+			"id": "mock-json-001",
+			"integrationId": "Execution_Manager",
+			"messageId": "MSG-1001",
+			"fileName": "execution-request.json",
+			"contentType": "application/json",
+			"sizeBytes": 143,
+			"createdAt": "2026-06-17T14:25:00Z",
+			"expiresAt": "2026-06-24T14:25:00Z",
+			"previewAvailable": true,
+			"downloadOnly": false,
+			"payload": "{\"executionId\":\"EX-1001\",\"employeeId\":\"1009984\",\"action\":\"START\",\"profile\":\"iflmap\"}"
+		},
+		{
+			"id": "mock-csv-001",
+			"integrationId": "Execution_Manager",
+			"messageId": "MSG-1002",
+			"fileName": "execution-batch.csv",
+			"contentType": "text/csv",
+			"sizeBytes": 82,
+			"createdAt": "2026-06-17T14:32:00Z",
+			"expiresAt": "2026-06-24T14:32:00Z",
+			"previewAvailable": true,
+			"downloadOnly": false,
+			"payload": "executionId,employeeId,action\nEX-1002,1009985,START\nEX-1003,1009986,STOP"
+		},
+		{
+			"id": "mock-xml-001",
+			"integrationId": "Execution_Manager",
+			"messageId": "MSG-1003",
+			"fileName": "execution-event.xml",
+			"contentType": "application/xml",
+			"sizeBytes": 138,
+			"createdAt": "2026-06-17T14:39:00Z",
+			"expiresAt": "2026-06-24T14:39:00Z",
+			"previewAvailable": true,
+			"downloadOnly": false,
+			"payload": "<ExecutionEvent><ExecutionId>EX-1004</ExecutionId><EmployeeId>1009987</EmployeeId><Action>START</Action></ExecutionEvent>"
+		}
+	]
+}

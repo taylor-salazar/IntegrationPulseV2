@@ -66,3 +66,28 @@ class MessageLog(BaseModel):
     logEnd: Optional[str] = None
     durationMs: int = 0
     errorMessage: str = ""
+
+
+class PayloadCreateRequest(BaseModel):
+    integrationId: str
+    messageId: Optional[str] = None
+    fileName: str = "payload.txt"
+    contentType: str = "text/plain"
+    payload: str
+
+
+class PayloadSummary(BaseModel):
+    id: str
+    integrationId: str
+    messageId: Optional[str] = None
+    fileName: str
+    contentType: str = "text/plain"
+    sizeBytes: int = 0
+    createdAt: str
+    expiresAt: str
+    previewAvailable: bool = True
+    downloadOnly: bool = False
+
+
+class PayloadDetail(PayloadSummary):
+    payload: Optional[str] = None

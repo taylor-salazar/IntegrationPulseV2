@@ -120,6 +120,26 @@ sap.ui.define([
 		};
 	}
 
+	function mapPayload(oRaw) {
+		return {
+			id: oRaw.id || "",
+			integrationId: oRaw.integrationId || "",
+			messageId: oRaw.messageId || "",
+			fileName: oRaw.fileName || "payload.txt",
+			contentType: oRaw.contentType || "text/plain",
+			sizeBytes: oRaw.sizeBytes || 0,
+			createdAt: oRaw.createdAt || null,
+			expiresAt: oRaw.expiresAt || null,
+			previewAvailable: oRaw.previewAvailable !== false,
+			downloadOnly: !!oRaw.downloadOnly,
+			payload: oRaw.payload
+		};
+	}
+
+	function getPayloadUrl(sPath) {
+		return (config.payloadBaseUrl || "/payload-api/v1") + sPath;
+	}
+
 	function getDestinationUrl(sPath) {
 		return (config.destinationBaseUrl || "/api/v1") + sPath;
 	}
@@ -363,6 +383,39 @@ sap.ui.define([
 				});
 			}
 			return getJSON(config.backendBaseUrl + "/api/monitoring/" + encodeURIComponent(sId) + "/logs");
+		},
+
+		getPayloads: function (sIntegrationId) {
+			if (USE_MOCK) {
+				return getJSON(MOCK_ROOT + "/payloads.json").then(function (d) {
+					return delay(200).then(function () {
+						return (d[sIntegrationId] || []).map(mapPayload);
+					});
+				});
+			}
+			return getJSON(
+				getPayloadUrl("/payloads?integrationId=" + encodeURIComponent(sIntegrationId))
+			).then(function (aItems) {
+				return (aItems || []).map(mapPayload);
+			});
+		},
+
+		getPayload: function (sPayloadId) {
+			if (USE_MOCK) {
+				return getJSON(MOCK_ROOT + "/payloads.json").then(function (d) {
+					var aGroups = Object.keys(d).map(function (sKey) { return d[sKey]; });
+					var aAll = Array.prototype.concat.apply([], aGroups);
+					var oItem = aAll.filter(function (o) { return o.id === sPayloadId; })[0];
+					return delay(150).then(function () {
+						return oItem ? mapPayload(oItem) : null;
+					});
+				});
+			}
+			return getJSON(getPayloadUrl("/payloads/" + encodeURIComponent(sPayloadId))).then(mapPayload);
+		},
+
+		getPayloadDownloadUrl: function (sPayloadId) {
+			return getPayloadUrl("/payloads/" + encodeURIComponent(sPayloadId) + "/download");
 		}
 	};
 });

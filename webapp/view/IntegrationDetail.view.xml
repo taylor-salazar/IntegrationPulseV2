@@ -102,6 +102,49 @@
 						</List>
 					</Panel>
 				</VBox>
+
+				<Panel
+					headerText="{i18n>payloadsTitle}"
+					expandable="true"
+					expanded="false"
+					class="sapUiSmallMarginTop ipPanel">
+					<content>
+						<MessageStrip
+							visible="{= ${payloads>/items}.length === 0 }"
+							text="{i18n>noPayloads}"
+							type="Information"
+							showIcon="true"
+							class="sapUiSmallMarginBottom"/>
+						<Table
+							id="payloadsTable"
+							growing="true"
+							noDataText="{i18n>noPayloads}"
+							items="{path: 'payloads>/items', sorter: { path: 'createdAt', descending: true }}">
+							<columns>
+								<Column><Text text="{i18n>colPayloadName}"/></Column>
+								<Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colPayloadType}"/></Column>
+								<Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colPayloadSize}"/></Column>
+								<Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colPayloadCreated}"/></Column>
+								<Column hAlign="End"><Text text="{i18n>colPayloadAction}"/></Column>
+							</columns>
+							<items>
+								<ColumnListItem>
+									<cells>
+										<ObjectIdentifier title="{payloads>fileName}" text="{payloads>messageId}"/>
+										<Text text="{payloads>contentType}"/>
+										<ObjectNumber number="{path: 'payloads>sizeBytes', formatter: '.formatter.bytes'}"/>
+										<Text text="{path: 'payloads>createdAt', formatter: '.formatter.dateTime'}"/>
+										<Button
+											icon="{= ${payloads>downloadOnly} ? 'sap-icon://download' : 'sap-icon://display' }"
+											text="{= ${payloads>downloadOnly} ? ${i18n>downloadPayload} : ${i18n>viewPayload} }"
+											type="Transparent"
+											press=".onOpenPayload"/>
+									</cells>
+								</ColumnListItem>
+							</items>
+						</Table>
+					</content>
+				</Panel>
 			</VBox>
 		</f:content>
 

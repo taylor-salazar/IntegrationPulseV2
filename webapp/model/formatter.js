@@ -92,6 +92,20 @@ sap.ui.define([], function () {
 			return Math.round(n) + " ms";
 		},
 
+		bytes: function (iBytes) {
+			var n = Number(iBytes);
+			if (!n || isNaN(n)) {
+				return "0 B";
+			}
+			if (n < 1024) {
+				return n + " B";
+			}
+			if (n < 1024 * 1024) {
+				return (n / 1024).toFixed(1) + " KB";
+			}
+			return (n / (1024 * 1024)).toFixed(1) + " MB";
+		},
+
 		/**
 		 * Highlights non-zero error counts.
 		 * @param {number} iErrors error count

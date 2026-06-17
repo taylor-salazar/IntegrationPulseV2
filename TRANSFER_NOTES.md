@@ -103,3 +103,48 @@ Not ready for final BTP import until these are confirmed:
 | Destination auth has permission for runtime artifacts, configurations, deploy, and message logs | User must confirm |
 | BTP app router or HTML5 runtime route forwards `/api` to that destination | Must be configured for deployment |
 | Live test against BTP destination | Still needed |
+
+## Payload Viewer Direction
+
+Resolved payload decisions:
+
+| Concern | Decision |
+|---|---|
+| UI location | Integration detail page, expandable `Payloads` panel |
+| Supported preview formats | Text-readable JSON, XML, CSV, plain text |
+| Large payload behavior | Download-only when over preview threshold |
+| Retention | Expire after one week |
+| Sensitive payload access | Add role-based access before production rollout |
+| Storage architecture | Custom payload API with DB metadata and optional object storage for large files |
+
+Starter API route added for development:
+
+```text
+POST /payload-api/v1/payloads
+GET /payload-api/v1/payloads?integrationId=Execution_Manager
+GET /payload-api/v1/payloads/{payloadId}
+GET /payload-api/v1/payloads/{payloadId}/download
+```
+
+The Integration Suite iFlow HTTP receiver step should POST text payloads to:
+
+```text
+/payload-api/v1/payloads
+```
+
+Example request body:
+
+```json
+{
+  "integrationId": "Execution_Manager",
+  "messageId": "optional-message-id",
+  "fileName": "payload.json",
+  "contentType": "application/json",
+  "payload": "{\"hello\":\"world\"}"
+}
+```
+
+Production note: the current FastAPI route stores payloads in a local JSON file
+only to prove the UI/API contract. Before BTP production import, replace that
+with database metadata plus object storage for large payloads, and protect every
+payload route with role-based authorization.
