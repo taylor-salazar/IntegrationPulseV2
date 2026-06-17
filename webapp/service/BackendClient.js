@@ -88,6 +88,8 @@ sap.ui.define([
 		return {
 			id: oRaw.Id || oRaw.id || "",
 			name: oRaw.Name || oRaw.name || oRaw.Id || oRaw.id || "",
+			designTimeId: oRaw.IntegrationDesigntimeArtifactId || oRaw.DesigntimeArtifactId ||
+				oRaw.DesignTimeArtifactId || oRaw.ArtifactId || oRaw.Name || oRaw.Id || oRaw.id || "",
 			packageName: oRaw.PackageId || oRaw.PackageName || oRaw.packageName || "",
 			version: oRaw.Version || oRaw.version || "",
 			status: oRaw.Status || oRaw.status || "STOPPED",
@@ -156,14 +158,46 @@ sap.ui.define([
 		});
 	}
 
+	function uniqueValues(aValues) {
+		var mSeen = {};
+		return aValues.filter(function (sValue) {
+			if (!sValue || mSeen[sValue]) {
+				return false;
+			}
+			mSeen[sValue] = true;
+			return true;
+		});
+	}
+
+	function getDesignTimeIdCandidates(sId, oIntegration) {
+		return uniqueValues([
+			oIntegration && oIntegration.designTimeId,
+			sId,
+			oIntegration && oIntegration.name
+		]);
+	}
+
+	function getConfigurationsForCandidate(sDesignTimeId, sVersion) {
+		var sPath = "/IntegrationDesigntimeArtifacts(Id=" + odataLiteral(sDesignTimeId) +
+			",Version=" + odataLiteral(sVersion) + ")/Configurations";
+		return getJSON(getDestinationUrl(sPath)).then(function (d) {
+			return odataResults(d).map(mapConfiguration);
+		});
+	}
+
+	function tryGetConfigurations(aCandidates, sVersion, iIndex) {
+		if (iIndex >= aCandidates.length) {
+			return Promise.reject(new Error("Integration design time artifact not found"));
+		}
+		return getConfigurationsForCandidate(aCandidates[iIndex], sVersion).catch(function () {
+			return tryGetConfigurations(aCandidates, sVersion, iIndex + 1);
+		});
+	}
+
 	function getDestinationConfigurations(sId) {
 		return getDestinationIntegration(sId).then(function (oIntegration) {
 			var sVersion = (oIntegration && oIntegration.version) || "active";
-			var sPath = "/IntegrationDesigntimeArtifacts(Id=" + odataLiteral(sId) +
-				",Version=" + odataLiteral(sVersion) + ")/Configurations";
-			return getJSON(getDestinationUrl(sPath)).then(function (d) {
-				return odataResults(d).map(mapConfiguration);
-			});
+			return tryGetConfigurations(getDesignTimeIdCandidates(sId, oIntegration), sVersion, 0);
 		});
 	}
 
@@ -172,9 +206,10 @@ sap.ui.define([
 			return Promise.resolve({ id: sId, updated: 0 });
 		}
 		return getDestinationIntegration(sId).then(function (oIntegration) {
+			var sDesignTimeId = (oIntegration && oIntegration.designTimeId) || sId;
 			var sVersion = (oIntegration && oIntegration.version) || "active";
 			var aUpdates = aConfigurations.map(function (oConfig) {
-				var sPath = "/IntegrationDesigntimeArtifacts(Id=" + odataLiteral(sId) +
+				var sPath = "/IntegrationDesigntimeArtifacts(Id=" + odataLiteral(sDesignTimeId) +
 					",Version=" + odataLiteral(sVersion) + ")/$links/Configurations(" +
 					odataLiteral(oConfig.key) + ")";
 				return sendJSON(getDestinationUrl(sPath), "PUT", {
@@ -191,8 +226,9 @@ sap.ui.define([
 		return updateDestinationConfigurations(sId, aConfigurations).then(function () {
 			return getDestinationIntegration(sId);
 		}).then(function (oIntegration) {
+			var sDesignTimeId = (oIntegration && oIntegration.designTimeId) || sId;
 			var sVersion = (oIntegration && oIntegration.version) || "active";
-			var sPath = "/DeployIntegrationDesigntimeArtifact?Id=" + odataLiteral(sId) +
+			var sPath = "/DeployIntegrationDesigntimeArtifact?Id=" + odataLiteral(sDesignTimeId) +
 				"&Version=" + odataLiteral(sVersion);
 			return fetch(getDestinationUrl(sPath), {
 				method: "POST",
