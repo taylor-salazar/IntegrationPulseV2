@@ -44,82 +44,99 @@
 				class="ipIntegrationGroups"
 				wrap="Wrap"
 				renderType="Bare"
+				visible="{= !${view>/isGroupSelected} }"
 				items="{integrationGroups>/groups}">
-				<Panel
-					headerText="{= ${integrationGroups>title} + ' (' + ${integrationGroups>count} + ')' }"
-					expandable="true"
-					expanded="{integrationGroups>expanded}"
-					class="ipPanel ipIntegrationGroup">
-					<content>
-						<f:GridContainer
-							visible="{= ${view>/viewMode} === 'cards' }"
-							snapToRow="true"
-							class="ipGroupedCardGrid"
-							items="{integrationGroups>items}">
-							<f:layout>
-								<f:GridContainerSettings rowSize="11rem" columnSize="11rem" gap="0.75rem"/>
-							</f:layout>
-							<f:items>
-								<GenericTile
-									class="ipCard"
-									header="{integrationGroups>name}"
-									subheader="{integrationGroups>routeText}"
-									press=".onOpenIntegration">
-									<tileContent>
-										<TileContent unit="v{integrationGroups>version}" footer="{integrationGroups>parameterCount} parameters">
-											<content>
-												<HBox alignItems="Center" justifyContent="SpaceBetween" width="100%">
-													<ObjectStatus
-														class="sapUiTinyMarginBegin"
-														text="{integrationGroups>status}"
-														state="{path: 'integrationGroups>status', formatter: '.formatter.statusState'}"
-														icon="{path: 'integrationGroups>status', formatter: '.formatter.statusIcon'}"/>
-													<Button
-														icon="sap-icon://upload-to-cloud"
-														type="Transparent"
-														tooltip="{i18n>quickDeploy}"
-														enabled="{= ${view>/deployingId} !== ${integrationGroups>id} }"
-														press=".onDeployFromCard"/>
-												</HBox>
-											</content>
-										</TileContent>
-									</tileContent>
-								</GenericTile>
-							</f:items>
-						</f:GridContainer>
-
-						<Table
-							visible="{= ${view>/viewMode} === 'list' }"
-							growing="true"
-							growingThreshold="50"
-							items="{integrationGroups>items}">
-							<columns>
-								<Column><Text text="{i18n>colName}"/></Column>
-								<Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colSourceSystem}"/></Column>
-								<Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colTargetSystem}"/></Column>
-								<Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colPackage}"/></Column>
-								<Column hAlign="Center" minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colVersion}"/></Column>
-								<Column hAlign="Center"><Text text="{i18n>colStatus}"/></Column>
-							</columns>
-							<items>
-								<ColumnListItem type="Navigation" press=".onOpenIntegration">
-									<cells>
-										<ObjectIdentifier title="{integrationGroups>name}" text="{integrationGroups>id}"/>
-										<Text text="{integrationGroups>senderDisplay}"/>
-										<Text text="{integrationGroups>receiverDisplay}"/>
-										<Text text="{integrationGroups>packageName}"/>
-										<Text text="v{integrationGroups>version}"/>
-										<ObjectStatus
-											text="{integrationGroups>status}"
-											state="{path: 'integrationGroups>status', formatter: '.formatter.statusState'}"
-											icon="{path: 'integrationGroups>status', formatter: '.formatter.statusIcon'}"/>
-									</cells>
-								</ColumnListItem>
-							</items>
-						</Table>
-					</content>
-				</Panel>
+				<GenericTile
+					class="ipCategoryTile"
+					header="{integrationGroups>title}"
+					subheader="{= ${integrationGroups>count} + ' integrations' }"
+					press=".onOpenGroup">
+					<tileContent>
+						<TileContent unit="{= ${view>/groupBy} === 'receiver' ? 'target' : 'source' }" footer="{i18n>openCategory}">
+							<content>
+								<NumericContent
+									value="{integrationGroups>count}"
+									icon="{= ${view>/groupBy} === 'receiver' ? 'sap-icon://target-group' : 'sap-icon://source-code' }"/>
+							</content>
+						</TileContent>
+					</tileContent>
+				</GenericTile>
 			</FlexBox>
+
+			<VBox visible="{view>/isGroupSelected}" class="ipSelectedIntegrationGroup">
+				<OverflowToolbar class="ipSelectedGroupToolbar">
+					<Button icon="sap-icon://nav-back" text="{i18n>backToCategories}" press=".onBackToGroups"/>
+					<Title text="{view>/selectedGroupTitle}" level="H2"/>
+					<ToolbarSpacer/>
+				</OverflowToolbar>
+
+				<f:GridContainer
+					visible="{= ${view>/viewMode} === 'cards' }"
+					snapToRow="true"
+					class="ipSelectedCardGrid"
+					items="{selectedIntegrations>/items}">
+					<f:layout>
+						<f:GridContainerSettings rowSize="11rem" columnSize="11rem" gap="0.75rem"/>
+					</f:layout>
+					<f:items>
+						<GenericTile
+							class="ipCard"
+							header="{selectedIntegrations>name}"
+							subheader="{selectedIntegrations>routeText}"
+							press=".onOpenIntegration">
+							<tileContent>
+								<TileContent unit="v{selectedIntegrations>version}" footer="{selectedIntegrations>parameterCount} parameters">
+									<content>
+										<HBox alignItems="Center" justifyContent="SpaceBetween" width="100%">
+											<ObjectStatus
+												class="sapUiTinyMarginBegin"
+												text="{selectedIntegrations>status}"
+												state="{path: 'selectedIntegrations>status', formatter: '.formatter.statusState'}"
+												icon="{path: 'selectedIntegrations>status', formatter: '.formatter.statusIcon'}"/>
+											<Button
+												icon="sap-icon://upload-to-cloud"
+												type="Transparent"
+												tooltip="{i18n>quickDeploy}"
+												enabled="{= ${view>/deployingId} !== ${selectedIntegrations>id} }"
+												press=".onDeployFromCard"/>
+										</HBox>
+									</content>
+								</TileContent>
+							</tileContent>
+						</GenericTile>
+					</f:items>
+				</f:GridContainer>
+
+				<Table
+					visible="{= ${view>/viewMode} === 'list' }"
+					growing="true"
+					growingThreshold="50"
+					items="{selectedIntegrations>/items}">
+					<columns>
+						<Column><Text text="{i18n>colName}"/></Column>
+						<Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colSourceSystem}"/></Column>
+						<Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colTargetSystem}"/></Column>
+						<Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colPackage}"/></Column>
+						<Column hAlign="Center" minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colVersion}"/></Column>
+						<Column hAlign="Center"><Text text="{i18n>colStatus}"/></Column>
+					</columns>
+					<items>
+						<ColumnListItem type="Navigation" press=".onOpenIntegration">
+							<cells>
+								<ObjectIdentifier title="{selectedIntegrations>name}" text="{selectedIntegrations>id}"/>
+								<Text text="{selectedIntegrations>senderDisplay}"/>
+								<Text text="{selectedIntegrations>receiverDisplay}"/>
+								<Text text="{selectedIntegrations>packageName}"/>
+								<Text text="v{selectedIntegrations>version}"/>
+								<ObjectStatus
+									text="{selectedIntegrations>status}"
+									state="{path: 'selectedIntegrations>status', formatter: '.formatter.statusState'}"
+									icon="{path: 'selectedIntegrations>status', formatter: '.formatter.statusIcon'}"/>
+							</cells>
+						</ColumnListItem>
+					</items>
+				</Table>
+			</VBox>
 		</content>
 	</Page>
 </mvc:View>

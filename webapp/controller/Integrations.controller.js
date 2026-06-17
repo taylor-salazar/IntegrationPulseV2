@@ -12,9 +12,13 @@ sap.ui.define([
 		onInit: function () {
 			this.setModel(new JSONModel({ items: [] }), "integrations");
 			this.setModel(new JSONModel({ groups: [] }), "integrationGroups");
+			this.setModel(new JSONModel({ items: [] }), "selectedIntegrations");
 			this.setModel(new JSONModel({
 				viewMode: "cards",
 				groupBy: "sender",
+				isGroupSelected: false,
+				selectedGroupKey: "",
+				selectedGroupTitle: "",
 				isMock: BackendClient.isMock(),
 				busy: false,
 				deployingId: ""
@@ -26,6 +30,10 @@ sap.ui.define([
 		},
 
 		_onMatched: function () {
+			if (this._aAllItems.length) {
+				this._applyGrouping();
+				return;
+			}
 			this._loadData();
 		},
 
@@ -147,12 +155,31 @@ sap.ui.define([
 		},
 
 		_applyGrouping: function () {
-			var sGroupBy = this.getModel("view").getProperty("/groupBy") || "sender";
+			var oViewModel = this.getModel("view");
+			var sGroupBy = oViewModel.getProperty("/groupBy") || "sender";
+			var sSelectedGroupKey = oViewModel.getProperty("/selectedGroupKey");
 			var aFiltered = this._aAllItems.filter(function (oItem) {
 				return this._matchesSearch(oItem, this._sSearchQuery);
 			}.bind(this));
+			var aGroups = this._groupItems(aFiltered, sGroupBy);
+			var oSelectedGroup = sSelectedGroupKey && aGroups.filter(function (oGroup) {
+				return oGroup.key === sSelectedGroupKey;
+			})[0];
+
 			this.getModel("integrations").setProperty("/items", aFiltered);
-			this.getModel("integrationGroups").setProperty("/groups", this._groupItems(aFiltered, sGroupBy));
+			this.getModel("integrationGroups").setProperty("/groups", aGroups);
+			this.getModel("selectedIntegrations").setProperty("/items", oSelectedGroup ? oSelectedGroup.items : []);
+
+			if (sSelectedGroupKey && !oSelectedGroup) {
+				oViewModel.setProperty("/isGroupSelected", false);
+				oViewModel.setProperty("/selectedGroupKey", "");
+				oViewModel.setProperty("/selectedGroupTitle", "");
+			} else if (oSelectedGroup) {
+				oViewModel.setProperty(
+					"/selectedGroupTitle",
+					oSelectedGroup.title + " (" + oSelectedGroup.count + ")"
+				);
+			}
 		},
 
 		onRefresh: function () {
@@ -164,7 +191,11 @@ sap.ui.define([
 		},
 
 		onGroupByChange: function (oEvent) {
-			this.getModel("view").setProperty("/groupBy", oEvent.getParameter("item").getKey());
+			var oViewModel = this.getModel("view");
+			oViewModel.setProperty("/groupBy", oEvent.getParameter("item").getKey());
+			oViewModel.setProperty("/isGroupSelected", false);
+			oViewModel.setProperty("/selectedGroupKey", "");
+			oViewModel.setProperty("/selectedGroupTitle", "");
 			this._applyGrouping();
 		},
 
@@ -173,8 +204,32 @@ sap.ui.define([
 			this._applyGrouping();
 		},
 
+		onOpenGroup: function (oEvent) {
+			var oCtx = oEvent.getSource().getBindingContext("integrationGroups");
+			var oViewModel = this.getModel("view");
+			if (!oCtx) {
+				return;
+			}
+			oViewModel.setProperty("/isGroupSelected", true);
+			oViewModel.setProperty("/selectedGroupKey", oCtx.getProperty("key"));
+			oViewModel.setProperty(
+				"/selectedGroupTitle",
+				oCtx.getProperty("title") + " (" + oCtx.getProperty("count") + ")"
+			);
+			this.getModel("selectedIntegrations").setProperty("/items", oCtx.getProperty("items") || []);
+		},
+
+		onBackToGroups: function () {
+			var oViewModel = this.getModel("view");
+			oViewModel.setProperty("/isGroupSelected", false);
+			oViewModel.setProperty("/selectedGroupKey", "");
+			oViewModel.setProperty("/selectedGroupTitle", "");
+			this.getModel("selectedIntegrations").setProperty("/items", []);
+		},
+
 		onOpenIntegration: function (oEvent) {
 			var oCtx = oEvent.getSource().getBindingContext("integrationGroups") ||
+				oEvent.getSource().getBindingContext("selectedIntegrations") ||
 				oEvent.getSource().getBindingContext("integrations");
 			if (!oCtx) {
 				return;
@@ -184,6 +239,7 @@ sap.ui.define([
 
 		onDeployFromCard: function (oEvent) {
 			var oCtx = oEvent.getSource().getBindingContext("integrationGroups") ||
+				oEvent.getSource().getBindingContext("selectedIntegrations") ||
 				oEvent.getSource().getBindingContext("integrations");
 			if (!oCtx) {
 				return;

@@ -49,6 +49,7 @@ html, body, #content {
 	gap: 0.75rem;
 }
 
+.ipCategoryTile,
 .ipIntegrationGroup {
 	box-sizing: border-box;
 	width: calc((100% - 2.25rem) / 4);
@@ -57,8 +58,25 @@ html, body, #content {
 	overflow: hidden;
 }
 
+.ipCategoryTile {
+	cursor: pointer;
+	min-height: 8.5rem;
+}
+
+.ipSelectedIntegrationGroup {
+	padding: 0.75rem 1rem 1rem 1rem;
+}
+
+.ipSelectedGroupToolbar {
+	margin-bottom: 0.75rem;
+}
+
 .ipGroupedCardGrid {
 	margin: 0.75rem 0;
+}
+
+.ipSelectedCardGrid {
+	margin: 0;
 }
 
 /* KPI tiles on the monitoring page */
@@ -104,6 +122,7 @@ html, body, #content {
 }
 
 @media (max-width: 1300px) {
+	.ipCategoryTile,
 	.ipIntegrationGroup {
 		width: calc((100% - 1.5rem) / 3);
 	}
@@ -123,6 +142,7 @@ html, body, #content {
 }
 
 @media (max-width: 1000px) {
+	.ipCategoryTile,
 	.ipIntegrationGroup {
 		width: calc((100% - 0.75rem) / 2);
 	}
@@ -142,6 +162,7 @@ html, body, #content {
 }
 
 @media (max-width: 700px) {
+	.ipCategoryTile,
 	.ipIntegrationGroup {
 		width: 100%;
 		min-width: 0;
