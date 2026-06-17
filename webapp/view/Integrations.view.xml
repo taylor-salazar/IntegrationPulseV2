@@ -40,8 +40,10 @@
 				showIcon="true"
 				class="sapUiSmallMarginBegin sapUiSmallMarginEnd sapUiSmallMarginTop"/>
 
-			<VBox
+			<FlexBox
 				class="ipIntegrationGroups"
+				wrap="Wrap"
+				renderType="Bare"
 				items="{integrationGroups>/groups}">
 				<Panel
 					headerText="{= ${integrationGroups>title} + ' (' + ${integrationGroups>count} + ')' }"
@@ -117,7 +119,7 @@
 						</Table>
 					</content>
 				</Panel>
-			</VBox>
+			</FlexBox>
 		</content>
 	</Page>
 </mvc:View>
