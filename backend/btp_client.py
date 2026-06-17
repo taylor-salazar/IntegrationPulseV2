@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import List
+from typing import Dict, List
 from urllib.parse import quote
 
 import httpx
@@ -64,6 +64,26 @@ async def _is_get(path: str) -> dict:
         return resp.json()
 
 
+def _odata_results(data: dict) -> List[dict]:
+    return data.get("d", {}).get("results", [])
+
+
+async def _design_time_metadata_by_id() -> Dict[str, dict]:
+    data = await _is_get("/IntegrationDesigntimeArtifacts")
+    return {
+        r.get("Id", ""): {
+            "id": r.get("Id", ""),
+            "name": r.get("Name", ""),
+            "packageName": r.get("PackageId", ""),
+            "version": r.get("Version", ""),
+            "sender": r.get("Sender", "") or "",
+            "receiver": r.get("Receiver", "") or "",
+        }
+        for r in _odata_results(data)
+        if r.get("Id")
+    }
+
+
 # --------------------------------------------------------------------------- #
 # Integrations
 # --------------------------------------------------------------------------- #
@@ -73,7 +93,8 @@ async def list_integrations() -> List[Integration]:
 
     # >>> PLACEHOLDER: GET /IntegrationRuntimeArtifacts <<<
     data = await _is_get("/IntegrationRuntimeArtifacts")
-    results = data.get("d", {}).get("results", [])
+    design_time_by_id = await _design_time_metadata_by_id()
+    results = _odata_results(data)
     return [
         Integration(
             id=r.get("Id", ""),
@@ -85,8 +106,8 @@ async def list_integrations() -> List[Integration]:
             parameterCount=0,  # filled by a follow-up Configurations call if needed
             lastDeployed=r.get("DeployedOn"),
             isRuntimeArtifact=True,
-            sender=r.get("Sender", ""),
-            receiver=r.get("Receiver", ""),
+            sender=design_time_by_id.get(r.get("Id", ""), {}).get("sender", ""),
+            receiver=design_time_by_id.get(r.get("Id", ""), {}).get("receiver", ""),
         )
         for r in results
     ]

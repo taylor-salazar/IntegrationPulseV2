@@ -55,33 +55,72 @@ sap.ui.define([
 			});
 		},
 
+		_formatSystemName: function (sValue) {
+			var sName = String(sValue || "").trim();
+			var mAcronyms = {
+				API: true,
+				BTP: true,
+				EC: true,
+				HCM: true,
+				HR: true,
+				IDP: true,
+				SAP: true,
+				SFTP: true,
+				UKG: true
+			};
+			if (!sName) {
+				return "";
+			}
+			return sName
+				.replace(/[_-]+/g, " ")
+				.replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+				.replace(/\s+/g, " ")
+				.split(" ")
+				.map(function (sPart) {
+					var sUpper = sPart.toUpperCase();
+					if (mAcronyms[sUpper]) {
+						return sUpper;
+					}
+					return sPart.charAt(0).toUpperCase() + sPart.slice(1);
+				})
+				.join(" ");
+		},
+
 		_prepareRuntimeArtifacts: function (aItems) {
 			var sUnknown = this.getText("unknownSystem");
 			return (aItems || []).map(function (oItem) {
-				oItem.sender = oItem.sender || sUnknown;
-				oItem.receiver = oItem.receiver || sUnknown;
-				oItem.routeText = oItem.sender + " -> " + oItem.receiver;
+				oItem.senderDisplay = this._formatSystemName(oItem.sender) || sUnknown;
+				oItem.receiverDisplay = this._formatSystemName(oItem.receiver) || sUnknown;
+				oItem.routeText = oItem.senderDisplay + " -> " + oItem.receiverDisplay;
 				return oItem;
-			});
+			}.bind(this));
 		},
 
 		_groupItems: function (aItems, sGroupBy) {
 			var mGroups = {};
 			var sFallback = this.getText("unknownSystem");
 			(aItems || []).forEach(function (oItem) {
-				var sGroup = oItem[sGroupBy] || sFallback;
+				var sGroup = sGroupBy === "receiver" ? oItem.receiverDisplay : oItem.senderDisplay;
+				var bUnknown = sGroup === sFallback;
 				if (!mGroups[sGroup]) {
 					mGroups[sGroup] = {
 						key: sGroup,
 						title: sGroup,
 						count: 0,
+						expanded: !bUnknown,
+						isUnknown: bUnknown,
 						items: []
 					};
 				}
 				mGroups[sGroup].items.push(oItem);
 				mGroups[sGroup].count += 1;
 			});
-			return Object.keys(mGroups).sort().map(function (sKey) {
+			return Object.keys(mGroups).sort(function (a, b) {
+				if (mGroups[a].isUnknown !== mGroups[b].isUnknown) {
+					return mGroups[a].isUnknown ? 1 : -1;
+				}
+				return a.localeCompare(b);
+			}).map(function (sKey) {
 				mGroups[sKey].items.sort(function (a, b) {
 					return String(a.name || "").localeCompare(String(b.name || ""));
 				});
@@ -99,7 +138,9 @@ sap.ui.define([
 				oItem.packageName,
 				oItem.id,
 				oItem.sender,
-				oItem.receiver
+				oItem.receiver,
+				oItem.senderDisplay,
+				oItem.receiverDisplay
 			].some(function (sValue) {
 				return String(sValue || "").toLowerCase().indexOf(sNeedle) > -1;
 			});

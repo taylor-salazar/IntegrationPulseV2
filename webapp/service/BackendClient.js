@@ -102,6 +102,17 @@ sap.ui.define([
 		};
 	}
 
+	function mapDesignTimeMetadata(oRaw) {
+		return {
+			id: oRaw.Id || oRaw.id || "",
+			name: oRaw.Name || oRaw.name || "",
+			packageName: oRaw.PackageId || oRaw.PackageName || oRaw.packageName || "",
+			designTimeVersion: oRaw.Version || oRaw.version || "",
+			sender: oRaw.Sender || oRaw.sender || "",
+			receiver: oRaw.Receiver || oRaw.receiver || ""
+		};
+	}
+
 	function runtimeArtifactsOnly(aItems) {
 		return (aItems || []).filter(function (oItem) {
 			return oItem && oItem.id && oItem.isRuntimeArtifact !== false;
@@ -155,9 +166,46 @@ sap.ui.define([
 		return (config.destinationBaseUrl || "/api/v1") + sPath;
 	}
 
+	function indexById(aItems) {
+		var mItems = {};
+		(aItems || []).forEach(function (oItem) {
+			if (oItem && oItem.id) {
+				mItems[oItem.id] = oItem;
+			}
+		});
+		return mItems;
+	}
+
+	function getDestinationDesignTimeMetadata() {
+		return getJSON(getDestinationUrl("/IntegrationDesigntimeArtifacts")).then(function (d) {
+			return indexById(odataResults(d).map(mapDesignTimeMetadata));
+		});
+	}
+
+	function mergeDesignTimeMetadata(aRuntimeItems, mDesignTimeItems) {
+		return (aRuntimeItems || []).map(function (oRuntimeItem) {
+			var oDesignTimeItem = mDesignTimeItems[oRuntimeItem.designTimeId] ||
+				mDesignTimeItems[oRuntimeItem.id] ||
+				mDesignTimeItems[oRuntimeItem.name] ||
+				{};
+			return Object.assign({}, oRuntimeItem, {
+				designTimeId: oDesignTimeItem.id || oRuntimeItem.designTimeId,
+				designTimeVersion: oDesignTimeItem.designTimeVersion || oRuntimeItem.designTimeVersion,
+				sender: oDesignTimeItem.sender || "",
+				receiver: oDesignTimeItem.receiver || "",
+				packageName: oRuntimeItem.packageName || oDesignTimeItem.packageName,
+				name: oRuntimeItem.name || oDesignTimeItem.name || oRuntimeItem.id
+			});
+		});
+	}
+
 	function getDestinationIntegrations() {
-		return getJSON(getDestinationUrl("/IntegrationRuntimeArtifacts")).then(function (d) {
-			return runtimeArtifactsOnly(odataResults(d).map(mapIntegration));
+		return Promise.all([
+			getJSON(getDestinationUrl("/IntegrationRuntimeArtifacts")),
+			getDestinationDesignTimeMetadata()
+		]).then(function (aResults) {
+			var aRuntimeItems = runtimeArtifactsOnly(odataResults(aResults[0]).map(mapIntegration));
+			return mergeDesignTimeMetadata(aRuntimeItems, aResults[1]);
 		});
 	}
 

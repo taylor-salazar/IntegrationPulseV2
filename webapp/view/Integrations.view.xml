@@ -46,7 +46,7 @@
 				<Panel
 					headerText="{= ${integrationGroups>title} + ' (' + ${integrationGroups>count} + ')' }"
 					expandable="true"
-					expanded="true"
+					expanded="{integrationGroups>expanded}"
 					class="ipPanel ipIntegrationGroup">
 					<content>
 						<f:GridContainer
@@ -103,8 +103,8 @@
 								<ColumnListItem type="Navigation" press=".onOpenIntegration">
 									<cells>
 										<ObjectIdentifier title="{integrationGroups>name}" text="{integrationGroups>id}"/>
-										<Text text="{integrationGroups>sender}"/>
-										<Text text="{integrationGroups>receiver}"/>
+										<Text text="{integrationGroups>senderDisplay}"/>
+										<Text text="{integrationGroups>receiverDisplay}"/>
 										<Text text="{integrationGroups>packageName}"/>
 										<Text text="v{integrationGroups>version}"/>
 										<ObjectStatus
