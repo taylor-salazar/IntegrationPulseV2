@@ -50,13 +50,13 @@ html, body, #content {
 
 .ipParamCell {
 	box-sizing: border-box;
-	width: 33.333%;
-	min-width: 18rem;
+	width: 25%;
+	min-width: 16rem;
 	padding: 0.7rem 1rem;
 	border-bottom: 1px solid var(--sapList_BorderColor, #e5e5e5);
 }
 
-.ipParamCell:not(:nth-child(3n)) {
+.ipParamCell:not(:nth-child(4n)) {
 	border-right: 1px solid var(--sapList_BorderColor, #e5e5e5);
 }
 
@@ -76,7 +76,22 @@ html, body, #content {
 	white-space: pre;
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1300px) {
+	.ipParamCell {
+		width: 33.333%;
+		min-width: 18rem;
+	}
+
+	.ipParamCell:not(:nth-child(4n)) {
+		border-right: none;
+	}
+
+	.ipParamCell:not(:nth-child(3n)) {
+		border-right: 1px solid var(--sapList_BorderColor, #e5e5e5);
+	}
+}
+
+@media (max-width: 1000px) {
 	.ipParamCell {
 		width: 50%;
 		min-width: 20rem;
