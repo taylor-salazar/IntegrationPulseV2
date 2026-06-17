@@ -174,6 +174,7 @@ sap.ui.define([
 				oViewModel.setProperty("/isGroupSelected", false);
 				oViewModel.setProperty("/selectedGroupKey", "");
 				oViewModel.setProperty("/selectedGroupTitle", "");
+				this._showCategoryOverview();
 			} else if (oSelectedGroup) {
 				oViewModel.setProperty(
 					"/selectedGroupTitle",
@@ -197,6 +198,7 @@ sap.ui.define([
 			oViewModel.setProperty("/selectedGroupKey", "");
 			oViewModel.setProperty("/selectedGroupTitle", "");
 			this._applyGrouping();
+			this._showCategoryOverview();
 		},
 
 		onSearch: function (oEvent) {
@@ -217,6 +219,7 @@ sap.ui.define([
 				oCtx.getProperty("title") + " (" + oCtx.getProperty("count") + ")"
 			);
 			this.getModel("selectedIntegrations").setProperty("/items", oCtx.getProperty("items") || []);
+			this.byId("integrationCategoryNav").to(this.byId("categoryDetailPage"));
 		},
 
 		onBackToGroups: function () {
@@ -225,6 +228,15 @@ sap.ui.define([
 			oViewModel.setProperty("/selectedGroupKey", "");
 			oViewModel.setProperty("/selectedGroupTitle", "");
 			this.getModel("selectedIntegrations").setProperty("/items", []);
+			this._showCategoryOverview();
+		},
+
+		_showCategoryOverview: function () {
+			var oNav = this.byId("integrationCategoryNav");
+			var oOverviewPage = this.byId("categoryOverviewPage");
+			if (oNav && oOverviewPage && oNav.getCurrentPage() !== oOverviewPage) {
+				oNav.backToPage(oOverviewPage.getId());
+			}
 		},
 
 		onOpenIntegration: function (oEvent) {

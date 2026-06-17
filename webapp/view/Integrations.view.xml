@@ -40,45 +40,51 @@
 				showIcon="true"
 				class="sapUiSmallMarginBegin sapUiSmallMarginEnd sapUiSmallMarginTop"/>
 
-			<FlexBox
-				class="ipIntegrationGroups"
-				wrap="Wrap"
-				renderType="Bare"
-				visible="{= !${view>/isGroupSelected} }"
-				items="{integrationGroups>/groups}">
-				<GenericTile
-					class="ipCategoryTile"
-					header="{integrationGroups>title}"
-					subheader="{= ${integrationGroups>count} + ' integrations' }"
-					press=".onOpenGroup">
-					<tileContent>
-						<TileContent unit="{= ${view>/groupBy} === 'receiver' ? 'target' : 'source' }" footer="{i18n>openCategory}">
-							<content>
-								<NumericContent
-									value="{integrationGroups>count}"
-									icon="{= ${view>/groupBy} === 'receiver' ? 'sap-icon://target-group' : 'sap-icon://source-code' }"/>
-							</content>
-						</TileContent>
-					</tileContent>
-				</GenericTile>
-			</FlexBox>
+			<NavContainer id="integrationCategoryNav" class="ipIntegrationNav" defaultTransitionName="slide">
+				<pages>
+					<Page id="categoryOverviewPage" showHeader="false" enableScrolling="false">
+						<content>
+							<FlexBox
+								class="ipIntegrationGroups"
+								wrap="Wrap"
+								renderType="Bare"
+								items="{integrationGroups>/groups}">
+								<GenericTile
+									class="ipCategoryTile"
+									frameType="OneByOne"
+									header="{integrationGroups>title}"
+									subheader="{= ${view>/groupBy} === 'receiver' ? ${i18n>targetSystemCategory} : ${i18n>sourceSystemCategory} }"
+									press=".onOpenGroup">
+									<tileContent>
+										<TileContent footer="{i18n>integrationsCategoryFooter}">
+											<content>
+												<NumericContent value="{integrationGroups>count}"/>
+											</content>
+										</TileContent>
+									</tileContent>
+								</GenericTile>
+							</FlexBox>
+						</content>
+					</Page>
 
-			<VBox visible="{view>/isGroupSelected}" class="ipSelectedIntegrationGroup">
-				<OverflowToolbar class="ipSelectedGroupToolbar">
-					<Button icon="sap-icon://nav-back" text="{i18n>backToCategories}" press=".onBackToGroups"/>
-					<Title text="{view>/selectedGroupTitle}" level="H2"/>
-					<ToolbarSpacer/>
-				</OverflowToolbar>
+					<Page id="categoryDetailPage" showHeader="false" enableScrolling="false">
+						<content>
+							<VBox class="ipSelectedIntegrationGroup">
+								<OverflowToolbar class="ipSelectedGroupToolbar">
+									<Button icon="sap-icon://nav-back" text="{i18n>backToCategories}" press=".onBackToGroups"/>
+									<Title text="{view>/selectedGroupTitle}" level="H2"/>
+									<ToolbarSpacer/>
+								</OverflowToolbar>
 
-				<f:GridContainer
-					visible="{= ${view>/viewMode} === 'cards' }"
-					snapToRow="true"
-					class="ipSelectedCardGrid"
-					items="{selectedIntegrations>/items}">
-					<f:layout>
-						<f:GridContainerSettings rowSize="11rem" columnSize="11rem" gap="0.75rem"/>
-					</f:layout>
-					<f:items>
+								<f:GridContainer
+									visible="{= ${view>/viewMode} === 'cards' }"
+									snapToRow="true"
+									class="ipSelectedCardGrid"
+									items="{selectedIntegrations>/items}">
+									<f:layout>
+										<f:GridContainerSettings rowSize="11rem" columnSize="11rem" gap="0.75rem"/>
+									</f:layout>
+									<f:items>
 						<GenericTile
 							class="ipCard"
 							header="{selectedIntegrations>name}"
@@ -104,39 +110,43 @@
 								</TileContent>
 							</tileContent>
 						</GenericTile>
-					</f:items>
-				</f:GridContainer>
+									</f:items>
+								</f:GridContainer>
 
-				<Table
-					visible="{= ${view>/viewMode} === 'list' }"
-					growing="true"
-					growingThreshold="50"
-					items="{selectedIntegrations>/items}">
-					<columns>
-						<Column><Text text="{i18n>colName}"/></Column>
-						<Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colSourceSystem}"/></Column>
-						<Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colTargetSystem}"/></Column>
-						<Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colPackage}"/></Column>
-						<Column hAlign="Center" minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colVersion}"/></Column>
-						<Column hAlign="Center"><Text text="{i18n>colStatus}"/></Column>
-					</columns>
-					<items>
-						<ColumnListItem type="Navigation" press=".onOpenIntegration">
-							<cells>
-								<ObjectIdentifier title="{selectedIntegrations>name}" text="{selectedIntegrations>id}"/>
-								<Text text="{selectedIntegrations>senderDisplay}"/>
-								<Text text="{selectedIntegrations>receiverDisplay}"/>
-								<Text text="{selectedIntegrations>packageName}"/>
-								<Text text="v{selectedIntegrations>version}"/>
-								<ObjectStatus
-									text="{selectedIntegrations>status}"
-									state="{path: 'selectedIntegrations>status', formatter: '.formatter.statusState'}"
-									icon="{path: 'selectedIntegrations>status', formatter: '.formatter.statusIcon'}"/>
-							</cells>
-						</ColumnListItem>
-					</items>
-				</Table>
-			</VBox>
+								<Table
+									visible="{= ${view>/viewMode} === 'list' }"
+									growing="true"
+									growingThreshold="50"
+									items="{selectedIntegrations>/items}">
+									<columns>
+										<Column><Text text="{i18n>colName}"/></Column>
+										<Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colSourceSystem}"/></Column>
+										<Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colTargetSystem}"/></Column>
+										<Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colPackage}"/></Column>
+										<Column hAlign="Center" minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colVersion}"/></Column>
+										<Column hAlign="Center"><Text text="{i18n>colStatus}"/></Column>
+									</columns>
+									<items>
+										<ColumnListItem type="Navigation" press=".onOpenIntegration">
+											<cells>
+												<ObjectIdentifier title="{selectedIntegrations>name}" text="{selectedIntegrations>id}"/>
+												<Text text="{selectedIntegrations>senderDisplay}"/>
+												<Text text="{selectedIntegrations>receiverDisplay}"/>
+												<Text text="{selectedIntegrations>packageName}"/>
+												<Text text="v{selectedIntegrations>version}"/>
+												<ObjectStatus
+													text="{selectedIntegrations>status}"
+													state="{path: 'selectedIntegrations>status', formatter: '.formatter.statusState'}"
+													icon="{path: 'selectedIntegrations>status', formatter: '.formatter.statusIcon'}"/>
+											</cells>
+										</ColumnListItem>
+									</items>
+								</Table>
+							</VBox>
+						</content>
+					</Page>
+				</pages>
+			</NavContainer>
 		</content>
 	</Page>
 </mvc:View>
