@@ -31,12 +31,24 @@ sap.ui.define([
 			var oData = this.getModel("integrations");
 			this.getView().setBusy(true);
 			BackendClient.getIntegrations().then(function (aItems) {
-				oData.setProperty("/items", aItems);
+				oData.setProperty("/items", this._filterRuntimeArtifacts(aItems));
 				this.getView().setBusy(false);
 			}.bind(this)).catch(function (oErr) {
 				this.getView().setBusy(false);
 				MessageToast.show("Failed to load integrations: " + oErr.message);
 			}.bind(this));
+		},
+
+		_filterRuntimeArtifacts: function (aItems) {
+			var aExcludedStatuses = ["UNDEPLOYED", "NOT_DEPLOYED", "NOT DEPLOYED", "DRAFT"];
+			var aRuntimeStatuses = ["STARTED", "STOPPED", "STARTING", "ERROR", "DEPLOYING"];
+			return (aItems || []).filter(function (oItem) {
+				var sStatus = String(oItem.status || oItem.deploymentStatus || "").toUpperCase();
+				if (aExcludedStatuses.indexOf(sStatus) !== -1) {
+					return false;
+				}
+				return aRuntimeStatuses.indexOf(sStatus) !== -1 || !!oItem.lastDeployed;
+			});
 		},
 
 		onRefresh: function () {

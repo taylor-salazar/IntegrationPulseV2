@@ -34,9 +34,10 @@ html, body, #content {
 	transform: translateY(-2px);
 }
 
-.ipHomeGrid {
-	margin-top: 1rem;
+.ipHomeTiles {
+	gap: 0.75rem;
 	margin-left: 2rem;
+	margin-top: 0.75rem;
 }
 
 .ipHomeTile {
