@@ -85,8 +85,9 @@ The current UI now supports the source repo's destination flow:
 
 Runtime URLs:
 
-- Mock/demo: `index.html`
-- Destination live: `index.html?mock=false&api=destination`
+- Destination live: `index.html`
+- Mock/demo: `index.html?mock=true`
+- Explicit destination live: `index.html?mock=false&api=destination`
 - FastAPI proxy live: `index.html?mock=false&api=proxy`
 
 ## GitHub And BTP Readiness

@@ -4,8 +4,8 @@ sap.ui.define([], function () {
 	/**
 	 * Single source of truth for runtime wiring.
 	 *
-	 *  useMock      - true  => the UI reads from webapp/localService/mockdata/*.json
-	 *                 false => the UI uses liveMode
+	 *  useMock      - false => the UI uses liveMode. This is the BTP import default.
+	 *                 true  => the UI reads from webapp/localService/mockdata/*.json
 	 *  liveMode     - "destination" => call /api/v1 through BTP/UI5 destination routing
 	 *                 "proxy"       => call the FastAPI proxy at backendBaseUrl
 	 *  destinationBaseUrl - same-origin BTP destination route for SAP Integration Suite
@@ -14,14 +14,13 @@ sap.ui.define([], function () {
 	 *  backendBaseUrl - base URL of the optional FastAPI proxy (see ../../backend).
 	 *
 	 * Runtime overrides:
+	 *   ?mock=true               uses local mock data
 	 *   ?mock=false              uses config.liveMode
 	 *   ?mock=false&api=proxy    uses FastAPI proxy
 	 *   ?mock=false&api=destination uses BTP destination routing
-	 *
-	 * >>> This is the ONE place your colleague flips to go from demo to live. <<<
 	 */
 	return {
-		useMock: true,
+		useMock: false,
 		liveMode: "destination",
 		destinationBaseUrl: "/api/v1",
 		payloadBaseUrl: "/payload-api/v1",

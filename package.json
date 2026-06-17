@@ -4,9 +4,10 @@
 	"private": true,
 	"description": "Integration Pulse — SAPUI5 operations console for deployed SAP Integration Suite integrations",
 	"scripts": {
-		"start": "ui5 serve --open index.html",
-		"start:live": "ui5 serve --open \"index.html?mock=false\"",
-		"start:destination": "ui5 serve --open \"index.html?mock=false&api=destination\"",
+		"start": "ui5 serve --open \"index.html?mock=true\"",
+		"start:mock": "ui5 serve --open \"index.html?mock=true\"",
+		"start:live": "ui5 serve --open index.html",
+		"start:destination": "ui5 serve --open index.html",
 		"start:proxy": "ui5 serve --open \"index.html?mock=false&api=proxy\"",
 		"serve": "ui5 serve --port 8080",
 		"build": "ui5 build --clean-dest"
