@@ -17,9 +17,10 @@ Reference endpoints (Cloud Integration OData API v1):
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import os
-from typing import Dict, List
+from typing import List
 from urllib.parse import quote
 
 import httpx
@@ -68,20 +69,27 @@ def _odata_results(data: dict) -> List[dict]:
     return data.get("d", {}).get("results", [])
 
 
-async def _design_time_metadata_by_id() -> Dict[str, dict]:
-    data = await _is_get("/IntegrationDesigntimeArtifacts")
+def _map_design_time_metadata(raw: dict) -> dict:
     return {
-        r.get("Id", ""): {
-            "id": r.get("Id", ""),
-            "name": r.get("Name", ""),
-            "packageName": r.get("PackageId", ""),
-            "version": r.get("Version", ""),
-            "sender": r.get("Sender", "") or "",
-            "receiver": r.get("Receiver", "") or "",
-        }
-        for r in _odata_results(data)
-        if r.get("Id")
+        "id": raw.get("Id", ""),
+        "name": raw.get("Name", ""),
+        "packageName": raw.get("PackageId", ""),
+        "version": raw.get("Version", ""),
+        "sender": raw.get("Sender", "") or "",
+        "receiver": raw.get("Receiver", "") or "",
     }
+
+
+async def _design_time_metadata_for_artifact(integration_id: str) -> dict:
+    path = (
+        f"/IntegrationDesigntimeArtifacts(Id={_odata_literal(integration_id)},"
+        f"Version={_odata_literal('Active')})"
+    )
+    try:
+        data = await _is_get(path)
+    except httpx.HTTPStatusError:
+        return {}
+    return _map_design_time_metadata(data.get("d", data))
 
 
 # --------------------------------------------------------------------------- #
@@ -93,8 +101,10 @@ async def list_integrations() -> List[Integration]:
 
     # >>> PLACEHOLDER: GET /IntegrationRuntimeArtifacts <<<
     data = await _is_get("/IntegrationRuntimeArtifacts")
-    design_time_by_id = await _design_time_metadata_by_id()
     results = _odata_results(data)
+    design_time_items = await asyncio.gather(
+        *[_design_time_metadata_for_artifact(r.get("Id", "")) for r in results]
+    )
     return [
         Integration(
             id=r.get("Id", ""),
@@ -106,10 +116,10 @@ async def list_integrations() -> List[Integration]:
             parameterCount=0,  # filled by a follow-up Configurations call if needed
             lastDeployed=r.get("DeployedOn"),
             isRuntimeArtifact=True,
-            sender=design_time_by_id.get(r.get("Id", ""), {}).get("sender", ""),
-            receiver=design_time_by_id.get(r.get("Id", ""), {}).get("receiver", ""),
+            sender=design_time_items[i].get("sender", ""),
+            receiver=design_time_items[i].get("receiver", ""),
         )
-        for r in results
+        for i, r in enumerate(results)
     ]
 
 
