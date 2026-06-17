@@ -136,10 +136,8 @@ async def get_configurations(integration_id: str) -> List[Configuration]:
         raw = _load_mock("configurations.json").get(integration_id, [])
         return [Configuration(**o) for o in raw]
 
-    # >>> PLACEHOLDER: GET .../IntegrationDesigntimeArtifacts(Id='..',Version='..')/Configurations <<<
-    # NOTE: needs the artifact version; look it up from list_integrations() first.
-    integration = await get_integration(integration_id)
-    version = integration.version if integration else "active"
+    # >>> PLACEHOLDER: GET .../IntegrationDesigntimeArtifacts(Id='..',Version='Active')/Configurations <<<
+    version = "Active"
     path = (
         f"/IntegrationDesigntimeArtifacts(Id={_odata_literal(integration_id)},"
         f"Version={_odata_literal(version)})"
@@ -164,9 +162,8 @@ async def update_configurations(
     if SETTINGS.use_mock:
         return {"id": integration_id, "updated": len(updates)}
 
-    # >>> PLACEHOLDER: PUT each parameter back to the designtime artifact <<<
-    integration = await get_integration(integration_id)
-    version = integration.version if integration else "active"
+    # >>> PLACEHOLDER: PUT each parameter back to the selected designtime artifact <<<
+    version = "Active"
     token = await get_access_token()
     async with httpx.AsyncClient(timeout=60) as client:
         for upd in updates:
@@ -197,9 +194,8 @@ async def deploy_integration(
             id=integration_id, status="STARTING", taskId=f"mock-task-{integration_id}"
         )
 
-    # >>> PLACEHOLDER: POST /DeployIntegrationDesigntimeArtifact <<<
-    integration = await get_integration(integration_id)
-    version = integration.version if integration else "active"
+    # >>> PLACEHOLDER: POST /DeployIntegrationDesigntimeArtifact for the selected artifact only <<<
+    version = "Active"
     token = await get_access_token()
     path = (
         f"/DeployIntegrationDesigntimeArtifact?Id={_odata_literal(integration_id)}"
