@@ -1,0 +1,26 @@
+{
+	"comment": "Mock of SAP BTP GET /api/v1/MessageProcessingLogs?$filter=IntegrationFlowName eq '..', keyed by integration id.",
+	"SF_EC_to_Vendor_Employee_File": [
+		{ "messageId": "AGm9x1k2-7f", "status": "COMPLETED", "sender": "scheduler", "logEnd": "2026-06-12T05:00:12Z", "durationMs": 1840, "errorMessage": "" },
+		{ "messageId": "AGm9x0p4-3a", "status": "COMPLETED", "sender": "scheduler", "logEnd": "2026-06-11T05:00:09Z", "durationMs": 1720, "errorMessage": "" },
+		{ "messageId": "AGm9wzz1-9c", "status": "COMPLETED", "sender": "scheduler", "logEnd": "2026-06-10T05:00:15Z", "durationMs": 2010, "errorMessage": "" }
+	],
+	"SF_EC_CostCenter_Replication": [
+		{ "messageId": "BHn2a4d8-1q", "status": "FAILED", "sender": "S4HANA", "logEnd": "2026-06-12T08:15:44Z", "durationMs": 540, "errorMessage": "com.sap.it.rt.adapter.http.api.exception.HttpResponseException: 400 Bad Request — Cost center A000/4711 not found in target Foundation Object cust_costCenter. Replication aborted before upsert." },
+		{ "messageId": "BHn2a4c7-8w", "status": "FAILED", "sender": "S4HANA", "logEnd": "2026-06-12T07:15:31Z", "durationMs": 505, "errorMessage": "com.sap.it.rt.adapter.http.api.exception.HttpResponseException: 400 Bad Request — Mandatory field 'controllingArea' is empty for 3 records." },
+		{ "messageId": "BHn2a4b6-2e", "status": "COMPLETED", "sender": "S4HANA", "logEnd": "2026-06-12T06:15:20Z", "durationMs": 1320, "errorMessage": "" },
+		{ "messageId": "BHn2a4a5-5t", "status": "RETRY", "sender": "S4HANA", "logEnd": "2026-06-12T05:15:02Z", "durationMs": 760, "errorMessage": "Transient timeout calling SuccessFactors OData; scheduled for retry." }
+	],
+	"SF_Recruiting_to_Onboarding": [
+		{ "messageId": "CIo3b5e9-4r", "status": "COMPLETED", "sender": "Recruiting", "logEnd": "2026-06-12T06:01:50Z", "durationMs": 980, "errorMessage": "" },
+		{ "messageId": "CIo3b5d8-7y", "status": "FAILED", "sender": "Recruiting", "logEnd": "2026-06-12T04:32:11Z", "durationMs": 410, "errorMessage": "Onboarding 2.0 rejected payload: candidate 1009984 already has an active onboardee record." },
+		{ "messageId": "CIo3b5c7-1u", "status": "COMPLETED", "sender": "Recruiting", "logEnd": "2026-06-12T03:11:05Z", "durationMs": 1100, "errorMessage": "" }
+	],
+	"SF_EC_to_Payroll_Fulltime": [
+		{ "messageId": "DJp4c6f0-6i", "status": "COMPLETED", "sender": "scheduler", "logEnd": "2026-06-10T03:05:40Z", "durationMs": 8650, "errorMessage": "" }
+	],
+	"SF_Comp_to_Benefits_Vendor": [
+		{ "messageId": "EKq5d7g1-0o", "status": "PROCESSING", "sender": "scheduler", "logEnd": "2026-06-12T05:55:30Z", "durationMs": 0, "errorMessage": "" }
+	],
+	"SF_EC_Org_to_IDP": []
+}

@@ -1,0 +1,33 @@
+<mvc:View
+    controllerName="ui5.walkthrough.controller.IntegrationPanel"
+    xmlns="sap.m"                                                          
+    xmlns:mvc="sap.ui.core.mvc"
+    displayBlock="true">
+
+    <Panel headerText="{i18n>helloPanelTitle}"
+            class="sapUiResponsiveMargin"
+            width="auto"
+            height="auto">
+        <content>
+            <!-- When pressed .onShowHello is an 'EVENT' that is stored in the controller-->
+            <!--The { } notation is called data binding. It gets values from a model that is ATTACHED to a view-->
+            <Button text="{i18n>redeployIntegrationBtn}" 
+                    press=".onShowHello"
+                    class="myCustomButton"/>
+            <Input placeholder="{i18n>integrationNamePlaceholder}" 
+                    value="{/integrationName/name}" 
+                    description="{i18n>integrationNameDescription}: {/integrationName/name}" 
+                    valueLiveUpdate="true" 
+                    width="90%"/>
+            <Button text="{i18n>DeployIntegrationBtn}" 
+                    press=".onDeployIntegrationBtnPress"
+                    class="myCustomButton"/>
+            <FormattedText 
+                    htmlText="Integration Name: {/integrationName/name}"
+                    class="sapUiSmallMargin sapThemeHighlight-asColor myCustomText"/>
+            
+
+        </content>
+    </Panel>
+
+</mvc:View>

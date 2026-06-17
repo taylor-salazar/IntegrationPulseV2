@@ -1,0 +1,16 @@
+# Node / UI5
+node_modules/
+dist/
+.ui5/
+
+# Python
+backend/.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

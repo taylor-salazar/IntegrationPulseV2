@@ -1,0 +1,115 @@
+<mvc:View
+	controllerName="integrationpulse.controller.Integrations"
+	xmlns:mvc="sap.ui.core.mvc"
+	xmlns="sap.m"
+	xmlns:f="sap.f"
+	xmlns:core="sap.ui.core"
+	height="100%">
+
+	<Page id="integrationsPage" title="{i18n>integrationsTitle}" showHeader="true" class="ipPage">
+
+		<subHeader>
+			<OverflowToolbar>
+				<Text text="{i18n>integrationsSubtitle}" class="ipSubtitle"/>
+				<ToolbarSpacer/>
+				<SearchField
+					width="18rem"
+					placeholder="{i18n>searchIntegrations}"
+					search=".onSearch"
+					liveChange=".onSearch"/>
+				<SegmentedButton selectedKey="{view>/viewMode}" selectionChange=".onViewModeChange">
+					<items>
+						<SegmentedButtonItem key="cards" icon="sap-icon://grid" tooltip="{i18n>viewTiles}"/>
+						<SegmentedButtonItem key="list" icon="sap-icon://list" tooltip="{i18n>viewList}"/>
+					</items>
+				</SegmentedButton>
+				<Button icon="sap-icon://refresh" tooltip="{i18n>refresh}" press=".onRefresh"/>
+			</OverflowToolbar>
+		</subHeader>
+
+		<content>
+			<MessageStrip
+				visible="{view>/isMock}"
+				text="{i18n>mockBannerText}"
+				type="Information"
+				showIcon="true"
+				class="sapUiSmallMarginBegin sapUiSmallMarginEnd sapUiSmallMarginTop"/>
+
+			<!-- Cards view -->
+			<f:GridContainer
+				id="cardsContainer"
+				visible="{= ${view>/viewMode} === 'cards' }"
+				snapToRow="true"
+				class="sapUiSmallMargin"
+				items="{
+					path: 'integrations>/items',
+					sorter: { path: 'name' }
+				}">
+				<f:layout>
+					<f:GridContainerSettings rowSize="11rem" columnSize="11rem" gap="1rem"/>
+				</f:layout>
+				<f:items>
+					<GenericTile
+						class="ipCard"
+						header="{integrations>name}"
+						subheader="{integrations>packageName}"
+						press=".onOpenIntegration">
+						<tileContent>
+							<TileContent unit="v{integrations>version}" footer="{integrations>parameterCount} parameters">
+								<content>
+									<HBox alignItems="Center" justifyContent="SpaceBetween" width="100%">
+										<ObjectStatus
+											class="sapUiTinyMarginBegin"
+											text="{integrations>status}"
+											state="{path: 'integrations>status', formatter: '.formatter.statusState'}"
+											icon="{path: 'integrations>status', formatter: '.formatter.statusIcon'}"/>
+										<Button
+											icon="sap-icon://upload-to-cloud"
+											type="Transparent"
+											tooltip="{i18n>quickDeploy}"
+											enabled="{= ${view>/deployingId} !== ${integrations>id} }"
+											press=".onDeployFromCard"/>
+									</HBox>
+								</content>
+							</TileContent>
+						</tileContent>
+					</GenericTile>
+				</f:items>
+			</f:GridContainer>
+
+			<!-- List view -->
+			<Table
+				id="integrationsTable"
+				visible="{= ${view>/viewMode} === 'list' }"
+				growing="true"
+				growingThreshold="50"
+				class="sapUiSmallMarginBegin sapUiSmallMarginEnd"
+				items="{
+					path: 'integrations>/items',
+					sorter: { path: 'name' }
+				}">
+				<columns>
+					<Column><Text text="{i18n>colName}"/></Column>
+					<Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colPackage}"/></Column>
+					<Column hAlign="Center" minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colVersion}"/></Column>
+					<Column hAlign="Center"><Text text="{i18n>colStatus}"/></Column>
+					<Column minScreenWidth="Desktop" demandPopin="true"><Text text="{i18n>colLastDeployed}"/></Column>
+				</columns>
+				<items>
+					<ColumnListItem type="Navigation" press=".onOpenIntegration">
+						<cells>
+							<ObjectIdentifier title="{integrations>name}" text="{integrations>id}"/>
+							<Text text="{integrations>packageName}"/>
+							<Text text="v{integrations>version}"/>
+							<ObjectStatus
+								text="{integrations>status}"
+								state="{path: 'integrations>status', formatter: '.formatter.statusState'}"
+								icon="{path: 'integrations>status', formatter: '.formatter.statusIcon'}"/>
+							<Text text="{path: 'integrations>lastDeployed', formatter: '.formatter.dateTime'}"/>
+						</cells>
+					</ColumnListItem>
+				</items>
+			</Table>
+		</content>
+	</Page>
+</mvc:View>

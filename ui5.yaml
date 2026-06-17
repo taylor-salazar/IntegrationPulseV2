@@ -1,0 +1,27 @@
+specVersion: "3.0"
+metadata:
+  name: integration.pulse
+type: application
+# Default dev server (@ui5/cli "ui5 serve") just serves webapp/.
+# - Mock mode (default): no backend needed at all.
+# - Destination live mode: BackendClient calls /api/v1, and fiori-tools-proxy
+#   sends /api traffic to the BTP destination named Integration-Suite-Dev.
+# - Proxy live mode remains available with ?mock=false&api=proxy.
+server:
+  customMiddleware:
+    - name: fiori-tools-proxy
+      afterMiddleware: compression
+      configuration:
+        backend:
+          - destination: Integration-Suite-Dev
+            path: /api
+framework:
+  name: OpenUI5
+  version: "1.120.20"
+  libraries:
+    - name: sap.f
+    - name: sap.m
+    - name: sap.tnt
+    - name: sap.ui.core
+    - name: sap.ui.layout
+    - name: themelib_sap_horizon

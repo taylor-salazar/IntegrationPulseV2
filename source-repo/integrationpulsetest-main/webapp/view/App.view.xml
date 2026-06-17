@@ -1,0 +1,27 @@
+<!-- This modularizes the app to confrom to MVC-->
+<mvc:View
+    controllerName="ui5.walkthrough.controller.App"
+    xmlns="sap.m"                                                          
+    xmlns:mvc="sap.ui.core.mvc"
+    displayBlock="true"
+>
+
+    
+    <Shell>
+        <App class="myAppDemoWT">
+            <pages>
+                <Page title="{i18n>homePageTitle}">
+                <headerContent>
+                    <Button icon="sap-icon://home" press=".onDeployIntegrationBtnPress"/>
+                </headerContent>
+                    <content>
+                        <mvc:XMLView viewName="ui5.walkthrough.view.IntegrationPanel"/>
+                        <mvc:XMLView viewName="ui5.walkthrough.view.IntegrationList"/>
+                    </content>
+                </Page>
+            </pages>
+        </App>
+    </Shell>
+    
+    
+</mvc:View>

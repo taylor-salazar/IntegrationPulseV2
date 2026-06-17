@@ -1,0 +1,13 @@
+specVersion: "4.0"
+metadata:
+  name: ui5testenvironment
+type: application
+
+server:
+  customMiddleware:
+    - name: fiori-tools-proxy
+      afterMiddleware: compression
+      configuration:
+        backend:
+          - destination: Integration-Suite-Dev
+            path: /api

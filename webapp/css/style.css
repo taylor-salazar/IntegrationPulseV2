@@ -1,0 +1,59 @@
+/* Integration Pulse — light polish on top of the Horizon theme */
+
+html, body, #content {
+	height: 100%;
+}
+
+.ipShellSubtitle {
+	color: var(--sapShell_TextColor, #fff);
+	opacity: 0.75;
+	font-size: 0.8125rem;
+}
+
+.ipSubtitle,
+.ipMuted {
+	color: var(--sapContent_LabelColor, #6a6d70);
+}
+
+.ipSubtitle {
+	font-size: 0.875rem;
+}
+
+.ipMuted {
+	font-size: 0.75rem;
+}
+
+/* Integration cards */
+.ipCard {
+	cursor: pointer;
+	transition: box-shadow 0.15s ease-in-out, transform 0.15s ease-in-out;
+}
+
+.ipCard:hover {
+	box-shadow: var(--sapContent_Shadow2, 0 0.25rem 1rem 0 rgba(0, 0, 0, 0.15));
+	transform: translateY(-2px);
+}
+
+/* KPI tiles on the monitoring page */
+.ipKpiTile {
+	width: 9rem;
+}
+
+/* Parameter group panels */
+.ipPanel .sapMPanelHdr {
+	font-weight: 600;
+}
+
+.ipParamRow {
+	width: 100%;
+	padding: 0.25rem 0;
+}
+
+.ipParamLabel {
+	min-width: 16rem;
+	padding-right: 1rem;
+}
+
+.ipPage .sapMPageHeader .sapMTitle {
+	font-weight: 600;
+}

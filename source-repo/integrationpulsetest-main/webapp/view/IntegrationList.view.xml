@@ -1,0 +1,70 @@
+<mvc:View
+controllerName="ui5.walkthrough.controller.IntegrationList"
+xmlns="sap.m"
+xmlns:mvc="sap.ui.core.mvc">
+    <List
+        id="integrationList"
+        headerText="{i18n>integrationListTitle}"
+        class="sapUiResponsiveMargin"
+        width="auto"
+        items="{
+                path: 'integrations>/items',
+                sorter: {
+                    path: 'Name'
+                }
+        }">
+        <headerToolbar>
+            <Toolbar>
+                <Title text="{i18n>integrationListTitle}" />
+                <ToolbarSpacer />
+                <SearchField
+                    placeholder="Search Integrations"
+                    search=".onFilterIntegrations"
+                    width="50%"
+                    />
+                
+            </Toolbar>
+        </headerToolbar>
+        <items>
+        <CustomListItem>
+            <VBox width="100%">
+
+            <!-- Header (keeps exact ObjectListItem formatting) -->
+            <ObjectListItem
+                title="{integrations>Name} v{integrations>Version}"
+                number="{integrations>Status}"
+                numberState="{
+                path: 'integrations>Status',
+                formatter: '.formatter.statusState'
+                }"
+                type="Active"
+                press=".onToggleExpand">
+
+                <firstStatus>
+                <ObjectStatus
+                    text="{
+                    path: 'integrations>DeployedOn',
+                    formatter: '.formatter.formatDeployedOn'
+                    }" />
+                </firstStatus>
+
+            </ObjectListItem>
+
+            <!-- Expanded content (indented) -->
+            <VBox
+                visible="{integrations>_expanded}"
+                class="sapUiSmallMarginBegin sapUiSmallMarginTop">
+
+                <Button
+                text="{i18n>DeployIntegrationBtn}"
+                press=".onDeployIntegrationBtnPress" 
+                class=".myCustomButton"/>
+
+            </VBox>
+
+            </VBox>
+        </CustomListItem>
+        </items>
+    </List>
+
+</mvc:View>

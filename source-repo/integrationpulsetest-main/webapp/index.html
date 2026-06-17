@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>UI5 Walkthrough</title>
+
+
+        <!-- Specifies the module to load after the UI5 core is initialized. resouce roots creates the namespace mapping for on-init to use to find Component.js file -->
+        <script
+            id="sap-ui-bootstrap"
+            src="https://openui5.hana.ondemand.com/resources/sap-ui-core.js"
+            data-sap-ui-theme="sap_horizon"
+            data-sap-ui-libs="sap.m"
+            data-sap-ui-compat-version="edge"
+            data-sap-ui-async="true"
+            data-sap-ui-on-init="module:sap/ui/core/ComponentSupport"
+            data-sap-ui-resource-roots='{
+                "ui5.walkthrough": "./"
+            }'>
+	    </script>
+    </head>
+    <body class="sapUiBody" id="content">
+        <div data-sap-ui-component data-name="ui5.walkthrough" data-id="container" data-settings='{"id" : "walkthrough"}'>
+            
+        </div>
+    </body>
+</html>

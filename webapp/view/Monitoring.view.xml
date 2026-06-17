@@ -1,0 +1,89 @@
+<mvc:View
+	controllerName="integrationpulse.controller.Monitoring"
+	xmlns:mvc="sap.ui.core.mvc"
+	xmlns="sap.m"
+	xmlns:core="sap.ui.core">
+
+	<Page id="monitoringPage" title="{i18n>monitoringTitle}" class="ipPage">
+
+		<subHeader>
+			<OverflowToolbar>
+				<Text text="{i18n>monitoringSubtitle}" class="ipSubtitle"/>
+				<ToolbarSpacer/>
+				<SearchField width="16rem" placeholder="{i18n>searchIntegrations}" liveChange=".onSearch"/>
+				<ToggleButton text="{i18n>autoRefresh}" icon="sap-icon://synchronize" pressed="{view>/autoRefresh}" press=".onToggleAutoRefresh"/>
+				<Button icon="sap-icon://refresh" tooltip="{i18n>refresh}" press=".onRefresh"/>
+			</OverflowToolbar>
+		</subHeader>
+
+		<content>
+			<MessageStrip
+				visible="{view>/isMock}"
+				text="{i18n>mockBannerText}"
+				type="Information"
+				showIcon="true"
+				class="sapUiSmallMargin"/>
+
+			<!-- KPI strip -->
+			<HBox wrap="Wrap" class="sapUiSmallMarginBegin sapUiSmallMarginEnd sapUiSmallMarginTop">
+				<GenericTile class="ipKpiTile sapUiTinyMarginEnd sapUiTinyMarginBottom" header="{i18n>statusStarted}" frameType="OneByOne">
+					<TileContent unit="running">
+						<NumericContent value="{view>/kpi/started}" valueColor="Good" icon="sap-icon://status-positive"/>
+					</TileContent>
+				</GenericTile>
+				<GenericTile class="ipKpiTile sapUiTinyMarginEnd sapUiTinyMarginBottom" header="{i18n>statusError}" frameType="OneByOne">
+					<TileContent unit="failing">
+						<NumericContent value="{view>/kpi/error}" valueColor="Error" icon="sap-icon://status-negative"/>
+					</TileContent>
+				</GenericTile>
+				<GenericTile class="ipKpiTile sapUiTinyMarginEnd sapUiTinyMarginBottom" header="{i18n>colErrors}" frameType="OneByOne">
+					<TileContent unit="24h">
+						<NumericContent value="{view>/kpi/errors24h}" valueColor="Critical" icon="sap-icon://alert"/>
+					</TileContent>
+				</GenericTile>
+				<GenericTile class="ipKpiTile sapUiTinyMarginEnd sapUiTinyMarginBottom" header="{i18n>colMessages}" frameType="OneByOne">
+					<TileContent unit="24h">
+						<NumericContent value="{view>/kpi/messages24h}" icon="sap-icon://message-success"/>
+					</TileContent>
+				</GenericTile>
+			</HBox>
+
+			<Table
+				id="monitoringTable"
+				growing="true"
+				class="sapUiSmallMargin"
+				items="{
+					path: 'monitoring>/items',
+					sorter: [
+						{ path: 'errors24h', descending: true },
+						{ path: 'name' }
+					]
+				}">
+				<columns>
+					<Column><Text text="{i18n>colName}"/></Column>
+					<Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colEndpoint}"/></Column>
+					<Column hAlign="End" minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colMessages}"/></Column>
+					<Column hAlign="End"><Text text="{i18n>colErrors}"/></Column>
+					<Column hAlign="Center"><Text text="{i18n>colRuntimeStatus}"/></Column>
+				</columns>
+				<items>
+					<ColumnListItem type="Navigation" press=".onOpenItem">
+						<cells>
+							<ObjectIdentifier title="{monitoring>name}" text="{monitoring>packageName}"/>
+							<Text text="{monitoring>endpoint}"/>
+							<Text text="{monitoring>messages24h}"/>
+							<ObjectNumber
+								number="{monitoring>errors24h}"
+								state="{path: 'monitoring>errors24h', formatter: '.formatter.errorState'}"
+								emphasized="false"/>
+							<ObjectStatus
+								text="{monitoring>status}"
+								state="{path: 'monitoring>status', formatter: '.formatter.statusState'}"
+								icon="{path: 'monitoring>status', formatter: '.formatter.statusIcon'}"/>
+						</cells>
+					</ColumnListItem>
+				</items>
+			</Table>
+		</content>
+	</Page>
+</mvc:View>

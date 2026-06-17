@@ -1,0 +1,52 @@
+<mvc:View
+	controllerName="integrationpulse.controller.App"
+	xmlns:mvc="sap.ui.core.mvc"
+	xmlns="sap.m"
+	xmlns:tnt="sap.tnt"
+	displayBlock="true"
+	height="100%">
+
+	<tnt:ToolPage id="toolPage" sideExpanded="{appView>/sideExpanded}">
+
+		<!-- Top shell bar (Gmail-style header) -->
+		<tnt:header>
+			<tnt:ToolHeader>
+				<Button
+					icon="sap-icon://menu2"
+					type="Transparent"
+					tooltip="{i18n>toggleNav}"
+					press=".onToggleNav">
+					<layoutData>
+						<OverflowToolbarLayoutData priority="NeverOverflow"/>
+					</layoutData>
+				</Button>
+				<Image
+					src="sap-icon://overview-chart"
+					height="1.75rem"
+					class="sapUiTinyMarginBegin sapUiTinyMarginEnd"/>
+				<Title text="{i18n>shellTitle}" level="H1" class="sapUiTinyMarginEnd"/>
+				<Text text="{i18n>shellSubtitle}" class="ipShellSubtitle"/>
+				<ToolbarSpacer/>
+				<Button icon="sap-icon://refresh" type="Transparent" tooltip="{i18n>refresh}" press=".onGlobalRefresh"/>
+				<Button icon="sap-icon://bell" type="Transparent" tooltip="{i18n>notifications}"/>
+				<Avatar initials="OP" displaySize="XS" class="sapUiTinyMarginBegin"/>
+			</tnt:ToolHeader>
+		</tnt:header>
+
+		<!-- Collapsible left navigation -->
+		<tnt:sideContent>
+			<tnt:SideNavigation id="sideNav" selectedKey="{appView>/selectedNavKey}" itemSelect=".onNavSelect">
+				<tnt:NavigationList>
+					<tnt:NavigationListItem text="{i18n>navIntegrations}" key="integrations" icon="sap-icon://chain-link"/>
+					<tnt:NavigationListItem text="{i18n>navMonitoring}" key="monitoring" icon="sap-icon://activity-2"/>
+				</tnt:NavigationList>
+			</tnt:SideNavigation>
+		</tnt:sideContent>
+
+		<!-- Routed content -->
+		<tnt:mainContents>
+			<App id="rootApp" autoFocus="false"/>
+		</tnt:mainContents>
+
+	</tnt:ToolPage>
+</mvc:View>

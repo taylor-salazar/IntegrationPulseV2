@@ -1,0 +1,66 @@
+{
+	"comment": "Mock of SAP BTP GET .../IntegrationDesigntimeArtifacts(Id='..',Version='..')/Configurations, keyed by integration id. Each entry: ParameterKey/ParameterValue/DataType in BTP terms.",
+	"SF_EC_to_Vendor_Employee_File": [
+		{ "key": "extract.entity", "label": "EC entity", "value": "PerPerson", "defaultValue": "PerPerson", "dataType": "xsd:string" },
+		{ "key": "extract.deltaEnabled", "label": "Delta enabled", "value": "true", "defaultValue": "true", "dataType": "xsd:boolean" },
+		{ "key": "extract.pageSize", "label": "Page size", "value": "500", "defaultValue": "200", "dataType": "xsd:integer" },
+		{ "key": "filter.company", "label": "Company code", "value": "1000", "defaultValue": "", "dataType": "xsd:string" },
+		{ "key": "filter.effectiveDateFrom", "label": "Effective date from", "value": "2026-01-01", "defaultValue": "", "dataType": "xsd:date" },
+		{ "key": "delivery.fileNamePattern", "label": "File name pattern", "value": "EMP_{yyyyMMdd}.csv", "defaultValue": "EMP_{yyyyMMdd}.csv", "dataType": "xsd:string" },
+		{ "key": "delivery.encoding", "label": "Encoding", "value": "UTF-8", "defaultValue": "UTF-8", "dataType": "xsd:string" },
+		{ "key": "sftp.host", "label": "SFTP host", "value": "sftp.vendor.example.com", "defaultValue": "", "dataType": "xsd:string" },
+		{ "key": "sftp.port", "label": "SFTP port", "value": "22", "defaultValue": "22", "dataType": "xsd:integer" },
+		{ "key": "sftp.targetDirectory", "label": "Target directory", "value": "/inbound/hr", "defaultValue": "/inbound", "dataType": "xsd:string" },
+		{ "key": "sftp.password", "label": "SFTP password", "value": "", "defaultValue": "", "dataType": "xsd:string", "secure": true }
+	],
+	"SF_EC_to_Payroll_Fulltime": [
+		{ "key": "extract.entity", "label": "EC entity", "value": "EmpCompensation", "defaultValue": "EmpCompensation", "dataType": "xsd:string" },
+		{ "key": "extract.mode", "label": "Extract mode", "value": "FULL", "defaultValue": "FULL", "dataType": "xsd:string" },
+		{ "key": "extract.pageSize", "label": "Page size", "value": "1000", "defaultValue": "200", "dataType": "xsd:integer" },
+		{ "key": "filter.payrollArea", "label": "Payroll area", "value": "DE01", "defaultValue": "", "dataType": "xsd:string" },
+		{ "key": "include.recurringPay", "label": "Include recurring pay", "value": "true", "defaultValue": "true", "dataType": "xsd:boolean" },
+		{ "key": "include.oneTimePay", "label": "Include one-time pay", "value": "false", "defaultValue": "false", "dataType": "xsd:boolean" },
+		{ "key": "delivery.fileNamePattern", "label": "File name pattern", "value": "PAY_FULL_{yyyyMMdd}.dat", "defaultValue": "PAY_{yyyyMMdd}.dat", "dataType": "xsd:string" },
+		{ "key": "audit.enabled", "label": "Audit logging", "value": "true", "defaultValue": "true", "dataType": "xsd:boolean" },
+		{ "key": "sftp.host", "label": "SFTP host", "value": "payroll.example.com", "defaultValue": "", "dataType": "xsd:string" }
+	],
+	"SF_EC_CostCenter_Replication": [
+		{ "key": "extract.entity", "label": "Source object", "value": "CostCenter", "defaultValue": "CostCenter", "dataType": "xsd:string" },
+		{ "key": "filter.controllingArea", "label": "Controlling area", "value": "A000", "defaultValue": "", "dataType": "xsd:string" },
+		{ "key": "filter.validFrom", "label": "Valid from", "value": "2026-01-01", "defaultValue": "", "dataType": "xsd:date" },
+		{ "key": "delivery.target", "label": "Target FO", "value": "cust_costCenter", "defaultValue": "cust_costCenter", "dataType": "xsd:string" },
+		{ "key": "delivery.upsertMode", "label": "Upsert mode", "value": "INCREMENTAL", "defaultValue": "INCREMENTAL", "dataType": "xsd:string" },
+		{ "key": "audit.enabled", "label": "Audit logging", "value": "true", "defaultValue": "true", "dataType": "xsd:boolean" },
+		{ "key": "audit.retentionDays", "label": "Audit retention (days)", "value": "30", "defaultValue": "30", "dataType": "xsd:integer" }
+	],
+	"SF_Recruiting_to_Onboarding": [
+		{ "key": "extract.entity", "label": "Source", "value": "JobApplication", "defaultValue": "JobApplication", "dataType": "xsd:string" },
+		{ "key": "filter.status", "label": "Application status", "value": "OfferAccepted", "defaultValue": "OfferAccepted", "dataType": "xsd:string" },
+		{ "key": "filter.recruitingTemplate", "label": "Template", "value": "GLOBAL_REQ_V3", "defaultValue": "", "dataType": "xsd:string" },
+		{ "key": "include.attachments", "label": "Include attachments", "value": "true", "defaultValue": "false", "dataType": "xsd:boolean" },
+		{ "key": "delivery.target", "label": "Onboarding instance", "value": "ONB2_PROD", "defaultValue": "ONB2_PROD", "dataType": "xsd:string" },
+		{ "key": "delivery.retryCount", "label": "Retry count", "value": "3", "defaultValue": "3", "dataType": "xsd:integer" },
+		{ "key": "audit.enabled", "label": "Audit logging", "value": "true", "defaultValue": "true", "dataType": "xsd:boolean" },
+		{ "key": "audit.notifyEmail", "label": "Notify e-mail", "value": "hr-integrations@example.com", "defaultValue": "", "dataType": "xsd:string" }
+	],
+	"SF_EC_Org_to_IDP": [
+		{ "key": "extract.entity", "label": "Source", "value": "FOBusinessUnit", "defaultValue": "FOBusinessUnit", "dataType": "xsd:string" },
+		{ "key": "filter.activeOnly", "label": "Active only", "value": "true", "defaultValue": "true", "dataType": "xsd:boolean" },
+		{ "key": "delivery.target", "label": "IdP endpoint", "value": "https://idp.example.com/scim/v2", "defaultValue": "", "dataType": "xsd:string" },
+		{ "key": "delivery.batchSize", "label": "Batch size", "value": "100", "defaultValue": "100", "dataType": "xsd:integer" },
+		{ "key": "delivery.token", "label": "Bearer token", "value": "", "defaultValue": "", "dataType": "xsd:string", "secure": true },
+		{ "key": "audit.enabled", "label": "Audit logging", "value": "false", "defaultValue": "false", "dataType": "xsd:boolean" }
+	],
+	"SF_Comp_to_Benefits_Vendor": [
+		{ "key": "extract.entity", "label": "Source", "value": "EmpCompensation", "defaultValue": "EmpCompensation", "dataType": "xsd:string" },
+		{ "key": "extract.deltaEnabled", "label": "Delta enabled", "value": "false", "defaultValue": "true", "dataType": "xsd:boolean" },
+		{ "key": "filter.benefitsEligible", "label": "Benefits eligible only", "value": "true", "defaultValue": "true", "dataType": "xsd:boolean" },
+		{ "key": "filter.country", "label": "Country", "value": "US", "defaultValue": "", "dataType": "xsd:string" },
+		{ "key": "include.dependents", "label": "Include dependents", "value": "true", "defaultValue": "false", "dataType": "xsd:boolean" },
+		{ "key": "delivery.fileNamePattern", "label": "File name pattern", "value": "BEN_{yyyyMMdd}.xml", "defaultValue": "BEN_{yyyyMMdd}.xml", "dataType": "xsd:string" },
+		{ "key": "delivery.format", "label": "Format", "value": "XML", "defaultValue": "XML", "dataType": "xsd:string" },
+		{ "key": "sftp.host", "label": "SFTP host", "value": "benefits.example.com", "defaultValue": "", "dataType": "xsd:string" },
+		{ "key": "sftp.targetDirectory", "label": "Target directory", "value": "/feeds/comp", "defaultValue": "/feeds", "dataType": "xsd:string" },
+		{ "key": "sftp.password", "label": "SFTP password", "value": "", "defaultValue": "", "dataType": "xsd:string", "secure": true }
+	]
+}

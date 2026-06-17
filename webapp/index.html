@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Integration Pulse</title>
+
+	<!--
+		UI5 is served locally by the UI5 tooling (ui5.yaml -> framework block), so
+		the app is self-contained and does NOT depend on the public CDN — important
+		behind a corporate firewall / inside SuccessFactors. The version is pinned in
+		ui5.yaml. To use your corporate SAPUI5 CDN instead, point src at it.
+	-->
+	<script
+		id="sap-ui-bootstrap"
+		src="resources/sap-ui-core.js"
+		data-sap-ui-theme="sap_horizon"
+		data-sap-ui-resourceroots='{ "integrationpulse": "./" }'
+		data-sap-ui-oninit="module:sap/ui/core/ComponentSupport"
+		data-sap-ui-compatVersion="edge"
+		data-sap-ui-async="true"
+		data-sap-ui-frameOptions="trusted">
+	</script>
+</head>
+<body class="sapUiBody sapUiSizeCompact" id="content">
+	<div
+		data-sap-ui-component
+		data-name="integrationpulse"
+		data-id="container"
+		data-settings='{ "id": "integrationpulse" }'>
+	</div>
+</body>
+</html>

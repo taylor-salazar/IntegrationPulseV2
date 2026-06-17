@@ -1,0 +1,130 @@
+{
+	"_version": "1.60.0",
+	"sap.app": {
+		"id": "integrationpulse",
+		"type": "application",
+		"i18n": "i18n/i18n.properties",
+		"title": "{{appTitle}}",
+		"description": "{{appDescription}}",
+		"applicationVersion": {
+			"version": "0.1.0"
+		},
+		"dataSources": {
+			"backend": {
+				"uri": "/api/",
+				"type": "JSON",
+				"settings": {
+					"comment": "FastAPI proxy base path. The UI5 dev-server proxy (ui5.yaml) and the FastAPI CORS config both target this. In mock mode (service/config.js) it is ignored."
+				}
+			}
+		}
+	},
+
+	"sap.ui": {
+		"technology": "UI5",
+		"deviceTypes": {
+			"desktop": true,
+			"tablet": true,
+			"phone": true
+		}
+	},
+
+	"sap.ui5": {
+		"rootView": {
+			"viewName": "integrationpulse.view.App",
+			"type": "XML",
+			"async": true,
+			"id": "app"
+		},
+
+		"dependencies": {
+			"minUI5Version": "1.108.0",
+			"libs": {
+				"sap.ui.core": {},
+				"sap.m": {},
+				"sap.f": {},
+				"sap.tnt": {},
+				"sap.ui.layout": {}
+			}
+		},
+
+		"contentDensities": {
+			"compact": true,
+			"cozy": true
+		},
+
+		"models": {
+			"i18n": {
+				"type": "sap.ui.model.resource.ResourceModel",
+				"settings": {
+					"bundleName": "integrationpulse.i18n.i18n"
+				}
+			}
+		},
+
+		"resources": {
+			"css": [
+				{
+					"uri": "css/style.css"
+				}
+			]
+		},
+
+		"routing": {
+			"config": {
+				"routerClass": "sap.m.routing.Router",
+				"viewType": "XML",
+				"viewPath": "integrationpulse.view",
+				"controlId": "rootApp",
+				"controlAggregation": "pages",
+				"transition": "slide",
+				"async": true
+			},
+			"routes": [
+				{
+					"name": "integrations",
+					"pattern": "",
+					"target": "integrations"
+				},
+				{
+					"name": "integrationDetail",
+					"pattern": "integrations/{id}",
+					"target": "integrationDetail"
+				},
+				{
+					"name": "monitoring",
+					"pattern": "monitoring",
+					"target": "monitoring"
+				},
+				{
+					"name": "monitoringDetail",
+					"pattern": "monitoring/{id}",
+					"target": "monitoringDetail"
+				}
+			],
+			"targets": {
+				"integrations": {
+					"viewId": "integrations",
+					"viewName": "Integrations"
+				},
+				"integrationDetail": {
+					"viewId": "integrationDetail",
+					"viewName": "IntegrationDetail"
+				},
+				"monitoring": {
+					"viewId": "monitoring",
+					"viewName": "Monitoring"
+				},
+				"monitoringDetail": {
+					"viewId": "monitoringDetail",
+					"viewName": "MonitoringDetail"
+				},
+				"notFound": {
+					"viewId": "notFound",
+					"viewName": "NotFound",
+					"transition": "show"
+				}
+			}
+		}
+	}
+}

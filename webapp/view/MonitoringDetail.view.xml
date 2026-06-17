@@ -1,0 +1,85 @@
+<mvc:View
+	controllerName="integrationpulse.controller.MonitoringDetail"
+	xmlns:mvc="sap.ui.core.mvc"
+	xmlns="sap.m"
+	xmlns:f="sap.f">
+
+	<f:DynamicPage id="monDetailPage" busy="{monDetailView>/busy}" busyIndicatorDelay="0">
+
+		<f:title>
+			<f:DynamicPageTitle>
+				<f:heading>
+					<Title text="{monitoringItem>/name}"/>
+				</f:heading>
+				<f:actions>
+					<ObjectStatus
+						text="{monitoringItem>/status}"
+						state="{path: 'monitoringItem>/status', formatter: '.formatter.statusState'}"
+						icon="{path: 'monitoringItem>/status', formatter: '.formatter.statusIcon'}"/>
+				</f:actions>
+				<f:navigationActions>
+					<Button icon="sap-icon://nav-back" text="{i18n>backToMonitoring}" type="Transparent" press=".onNavBack"/>
+					<Button icon="sap-icon://refresh" text="{i18n>refresh}" type="Transparent" press=".onRefresh"/>
+				</f:navigationActions>
+			</f:DynamicPageTitle>
+		</f:title>
+
+		<f:header>
+			<f:DynamicPageHeader pinnable="true">
+				<f:content>
+					<HBox wrap="Wrap">
+						<VBox class="sapUiMediumMarginEnd">
+							<Label text="{i18n>colEndpoint}"/>
+							<Text text="{monitoringItem>/endpoint}"/>
+						</VBox>
+						<VBox class="sapUiMediumMarginEnd">
+							<Label text="{i18n>colMessages}"/>
+							<Text text="{monitoringItem>/messages24h}"/>
+						</VBox>
+						<VBox class="sapUiMediumMarginEnd">
+							<Label text="{i18n>colErrors}"/>
+							<ObjectNumber number="{monitoringItem>/errors24h}" state="{path: 'monitoringItem>/errors24h', formatter: '.formatter.errorState'}"/>
+						</VBox>
+						<VBox>
+							<Label text="{i18n>colLastDeployed}"/>
+							<Text text="{path: 'monitoringItem>/lastDeployed', formatter: '.formatter.dateTime'}"/>
+						</VBox>
+					</HBox>
+				</f:content>
+			</f:DynamicPageHeader>
+		</f:header>
+
+		<f:content>
+			<VBox class="sapUiContentPadding">
+				<Title text="{i18n>messageLogsTitle}" level="H3" class="sapUiSmallMarginBottom"/>
+
+				<Table
+					id="logsTable"
+					growing="true"
+					noDataText="{i18n>noLogs}"
+					items="{path: 'logs>/items', sorter: { path: 'logEnd', descending: true }}">
+					<columns>
+						<Column hAlign="Center"><Text text="{i18n>colLogStatus}"/></Column>
+						<Column><Text text="{i18n>colLogId}"/></Column>
+						<Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colLogSender}"/></Column>
+						<Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colLogTime}"/></Column>
+						<Column hAlign="End" minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colLogDuration}"/></Column>
+					</columns>
+					<items>
+						<ColumnListItem type="{= ${logs>status} === 'FAILED' ? 'Active' : 'Inactive' }" press=".onOpenLog">
+							<cells>
+								<ObjectStatus
+									text="{logs>status}"
+									state="{path: 'logs>status', formatter: '.formatter.logState'}"/>
+								<ObjectIdentifier title="{logs>messageId}"/>
+								<Text text="{logs>sender}"/>
+								<Text text="{path: 'logs>logEnd', formatter: '.formatter.dateTime'}"/>
+								<Text text="{path: 'logs>durationMs', formatter: '.formatter.duration'}"/>
+							</cells>
+						</ColumnListItem>
+					</items>
+				</Table>
+			</VBox>
+		</f:content>
+	</f:DynamicPage>
+</mvc:View>

@@ -1,0 +1,25 @@
+{
+    "Integrations": [
+      {
+        "IntegrationName": "SF EC to UKG",
+        "Version": "1.0.0",
+        "DateofLastDeploy": "2015-04-01T00:00:00",
+        "Status": "A",
+        "Revenue Generated": 1000000
+      },
+      {
+        "IntegrationName": "SuccessFactors to Workday",
+        "Version": "1.0.0",        
+        "DateofLastDeploy": "2015-02-18T00:00:00",
+        "Status": "A",
+        "Revenue Generated": 2000000
+      },
+      {
+        "IntegrationName": "SF to ServiceNow",
+        "Version": "1.0.0",
+        "DateofLastDeploy": "2015-03-02T00:00:00",
+        "Status": "I",
+        "Revenue Generated": 3000000
+      }
+    ]
+  }

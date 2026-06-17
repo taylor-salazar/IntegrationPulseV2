@@ -1,0 +1,17 @@
+<core:FragmentDefinition
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core">
+    <Dialog
+        id="deployConfirmDialog"
+        title="{i18n>DeployConfirmDialogTitle}">
+
+            <Text text="{i18n>DeployConfirmDialogMessage}"/>
+            <beginButton>
+                <Button text="{i18n>yesDeployButton}" press=".onDeployDialog"/>
+            </beginButton>
+            <endButton>
+                <Button text="{i18n>noDeployButton}" press=".onCloseDialog"/>
+            </endButton>
+    </Dialog>
+
+</core:FragmentDefinition>
