@@ -9,7 +9,8 @@ sap.ui.define([
 		onInit: function () {
 			this.setModel(new JSONModel({
 				sideExpanded: true,
-				selectedNavKey: "home"
+				selectedNavKey: "home",
+				homeExpanded: true
 			}), "appView");
 
 			// Keep the side-nav selection in sync with the current route.
@@ -34,6 +35,12 @@ sap.ui.define([
 
 		onNavSelect: function (oEvent) {
 			var sKey = oEvent.getParameter("item").getKey();
+			if (sKey === "home") {
+				var oModel = this.getModel("appView");
+				oModel.setProperty("/homeExpanded", !oModel.getProperty("/homeExpanded"));
+				this.navTo("home");
+				return;
+			}
 			if (sKey === "home" || sKey === "integrations" || sKey === "monitoring") {
 				this.navTo(sKey);
 			}

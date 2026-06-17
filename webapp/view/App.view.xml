@@ -41,7 +41,7 @@
 						text="{i18n>navHome}"
 						key="home"
 						icon="sap-icon://home"
-						expanded="true">
+						expanded="{appView>/homeExpanded}">
 						<tnt:NavigationListItem text="{i18n>navIntegrations}" key="integrations" icon="sap-icon://chain-link"/>
 						<tnt:NavigationListItem text="{i18n>navMonitoring}" key="monitoring" icon="sap-icon://activity-2"/>
 					</tnt:NavigationListItem>
