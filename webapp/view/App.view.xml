@@ -37,8 +37,14 @@
 		<tnt:sideContent>
 			<tnt:SideNavigation id="sideNav" selectedKey="{appView>/selectedNavKey}" itemSelect=".onNavSelect">
 				<tnt:NavigationList>
-					<tnt:NavigationListItem text="{i18n>navIntegrations}" key="integrations" icon="sap-icon://chain-link"/>
-					<tnt:NavigationListItem text="{i18n>navMonitoring}" key="monitoring" icon="sap-icon://activity-2"/>
+					<tnt:NavigationListItem
+						text="{i18n>navHome}"
+						key="home"
+						icon="sap-icon://home"
+						expanded="true">
+						<tnt:NavigationListItem text="{i18n>navIntegrations}" key="integrations" icon="sap-icon://chain-link"/>
+						<tnt:NavigationListItem text="{i18n>navMonitoring}" key="monitoring" icon="sap-icon://activity-2"/>
+					</tnt:NavigationListItem>
 				</tnt:NavigationList>
 			</tnt:SideNavigation>
 		</tnt:sideContent>

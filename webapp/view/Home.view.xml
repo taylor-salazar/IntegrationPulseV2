@@ -1,0 +1,52 @@
+<mvc:View
+	controllerName="integrationpulse.controller.Home"
+	xmlns:mvc="sap.ui.core.mvc"
+	xmlns="sap.m"
+	xmlns:f="sap.f">
+
+	<Page title="{i18n>homeTitle}" showHeader="true" class="ipPage">
+		<content>
+			<VBox class="sapUiContentPadding">
+				<VBox class="sapUiSmallMarginBottom">
+					<Title text="{i18n>homeTitle}" level="H2"/>
+					<Text text="{i18n>homeSubtitle}" class="ipMuted"/>
+				</VBox>
+
+				<f:GridContainer class="ipHomeGrid" snapToRow="true">
+					<f:layout>
+						<f:GridContainerSettings rowSize="12rem" columnSize="16rem" gap="1rem"/>
+					</f:layout>
+					<f:items>
+						<GenericTile
+							class="ipHomeTile"
+							header="{i18n>navIntegrations}"
+							subheader="{i18n>homeIntegrationsSubtitle}"
+							press=".onOpenIntegrations">
+							<tileContent>
+								<TileContent footer="{i18n>homeOpen}">
+									<content>
+										<NumericContent icon="sap-icon://chain-link" value=""/>
+									</content>
+								</TileContent>
+							</tileContent>
+						</GenericTile>
+
+						<GenericTile
+							class="ipHomeTile"
+							header="{i18n>navMonitoring}"
+							subheader="{i18n>homeMonitoringSubtitle}"
+							press=".onOpenMonitoring">
+							<tileContent>
+								<TileContent footer="{i18n>homeOpen}">
+									<content>
+										<NumericContent icon="sap-icon://activity-2" value=""/>
+									</content>
+								</TileContent>
+							</tileContent>
+						</GenericTile>
+					</f:items>
+				</f:GridContainer>
+			</VBox>
+		</content>
+	</Page>
+</mvc:View>

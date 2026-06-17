@@ -82,8 +82,13 @@
 			},
 			"routes": [
 				{
-					"name": "integrations",
+					"name": "home",
 					"pattern": "",
+					"target": "home"
+				},
+				{
+					"name": "integrations",
+					"pattern": "integrations",
 					"target": "integrations"
 				},
 				{
@@ -103,6 +108,10 @@
 				}
 			],
 			"targets": {
+				"home": {
+					"viewId": "home",
+					"viewName": "Home"
+				},
 				"integrations": {
 					"viewId": "integrations",
 					"viewName": "Integrations"
