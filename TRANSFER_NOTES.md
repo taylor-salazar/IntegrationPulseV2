@@ -103,6 +103,7 @@ Not ready for final BTP import until these are confirmed:
 | Destination points at the SAP Integration Suite API base URL | User must confirm |
 | Destination auth has permission for runtime artifacts, configurations, deploy, and message logs | User must confirm |
 | BTP app router or HTML5 runtime route forwards `/api` to that destination | Must be configured for deployment |
+| BTP app route forwards `/payload-api` to the payload receiver service | Needed before live payload capture works |
 | Live test against BTP destination | Still needed |
 
 ## Payload Viewer Direction
@@ -149,3 +150,8 @@ Production note: the current FastAPI route stores payloads in a local JSON file
 only to prove the UI/API contract. Before BTP production import, replace that
 with database metadata plus object storage for large payloads, and protect every
 payload route with role-based authorization.
+
+Payload auto-loading is currently disabled so missing `/payload-api` routes do
+not create noise while the core integration/configuration workflows are tested.
+Re-enable by calling `_loadPayloads()` after the integration detail parameters
+finish loading.

@@ -44,20 +44,25 @@ sap.ui.define([
 
 			Promise.all([
 				BackendClient.getIntegration(this._sId),
-				BackendClient.getConfigurations(this._sId),
-				BackendClient.getPayloads(this._sId)
+				BackendClient.getConfigurations(this._sId)
 			]).then(function (aRes) {
 				var oIntegration = aRes[0] || {};
 				var aConfigs = aRes[1] || [];
-				var aPayloads = aRes[2] || [];
 				that.getModel("integration").setData(oIntegration);
 				that.getModel("parameters").setData({ groups: that._groupParams(aConfigs) });
-				that.getModel("payloads").setProperty("/items", aPayloads);
 				that.getModel("detailView").setProperty("/busy", false);
 			}).catch(function (oErr) {
 				that.getModel("detailView").setProperty("/busy", false);
 				MessageToast.show("Failed to load configuration: " + oErr.message);
 			});
+		},
+
+		_loadPayloads: function () {
+			BackendClient.getPayloads(this._sId).then(function (aPayloads) {
+				this.getModel("payloads").setProperty("/items", aPayloads || []);
+			}.bind(this)).catch(function () {
+				this.getModel("payloads").setProperty("/items", []);
+			}.bind(this));
 		},
 
 		/**
