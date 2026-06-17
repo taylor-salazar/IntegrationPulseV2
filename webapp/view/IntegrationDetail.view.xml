@@ -83,23 +83,26 @@
 				<!-- One panel per parameter group (extract.* / filter.* / delivery.* ...) -->
 				<VBox items="{parameters>/groups}">
 					<Panel headerText="{parameters>name}" expandable="true" expanded="true" class="sapUiSmallMarginBottom ipPanel">
-						<List items="{parameters>params}" showSeparators="Inner" backgroundDesign="Transparent">
-							<CustomListItem>
-								<HBox alignItems="Center" justifyContent="SpaceBetween" wrap="Wrap" class="ipParamRow">
+						<FlexBox
+							items="{parameters>params}"
+							wrap="Wrap"
+							class="ipParamGrid">
+							<items>
+								<VBox class="ipParamCell">
 									<VBox class="ipParamLabel">
 										<Label text="{parameters>label}" design="Bold"/>
 										<Text text="{parameters>key}" class="ipMuted"/>
 									</VBox>
 									<Input
-										width="22rem"
+										width="100%"
 										value="{parameters>value}"
 										type="{= ${parameters>secure} ? 'Password' : 'Text' }"
 										placeholder="{parameters>defaultValue}"
 										liveChange=".onParamChange"
 										editable="{= !${parameters>readOnly} }"/>
-								</HBox>
-							</CustomListItem>
-						</List>
+								</VBox>
+							</items>
+						</FlexBox>
 					</Panel>
 				</VBox>
 
