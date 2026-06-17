@@ -272,39 +272,30 @@ sap.ui.define([
 	}
 
 	function getDestinationConfigurations(sId) {
-		return getDestinationIntegration(sId).then(function (oIntegration) {
-			var sVersion = (oIntegration && oIntegration.designTimeVersion) || "Active";
-			return tryGetConfigurations(getDesignTimeIdCandidates(sId, oIntegration), sVersion, 0);
-		});
+		return tryGetConfigurations([sId], "Active", 0);
 	}
 
 	function updateDestinationConfigurations(sId, aConfigurations) {
 		if (!aConfigurations || !aConfigurations.length) {
 			return Promise.resolve({ id: sId, updated: 0 });
 		}
-		return getDestinationIntegration(sId).then(function (oIntegration) {
-			var sVersion = (oIntegration && oIntegration.designTimeVersion) || "Active";
-			var aUpdates = aConfigurations.map(function (oConfig) {
-				var sPath = "/IntegrationDesigntimeArtifacts(Id=" + odataLiteral(sId) +
-					",Version=" + odataLiteral(sVersion) + ")/$links/Configurations(" +
-					odataLiteral(oConfig.key) + ")";
-				return sendJSON(getDestinationUrl(sPath), "PUT", {
-					ParameterValue: oConfig.value
-				});
+		var aUpdates = aConfigurations.map(function (oConfig) {
+			var sPath = "/IntegrationDesigntimeArtifacts(Id=" + odataLiteral(sId) +
+				",Version=" + odataLiteral("Active") + ")/$links/Configurations(" +
+				odataLiteral(oConfig.key) + ")";
+			return sendJSON(getDestinationUrl(sPath), "PUT", {
+				ParameterValue: oConfig.value
 			});
-			return Promise.all(aUpdates).then(function () {
-				return { id: sId, updated: aConfigurations.length };
-			});
+		});
+		return Promise.all(aUpdates).then(function () {
+			return { id: sId, updated: aConfigurations.length };
 		});
 	}
 
 	function deployDestinationIntegration(sId, aConfigurations) {
 		return updateDestinationConfigurations(sId, aConfigurations).then(function () {
-			return getDestinationIntegration(sId);
-		}).then(function (oIntegration) {
-			var sVersion = (oIntegration && oIntegration.designTimeVersion) || "Active";
 			var sPath = "/DeployIntegrationDesigntimeArtifact?Id=" + odataLiteral(sId) +
-				"&Version=" + odataLiteral(sVersion);
+				"&Version=" + odataLiteral("Active");
 			return fetch(getDestinationUrl(sPath), {
 				method: "POST",
 				headers: { "Accept": "application/json" },
