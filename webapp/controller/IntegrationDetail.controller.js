@@ -156,7 +156,11 @@ sap.ui.define([
 			var aOut = [];
 			(this.getModel("parameters").getProperty("/groups") || []).forEach(function (oGroup) {
 				oGroup.params.forEach(function (oParam) {
-					aOut.push({ key: oParam.key, value: oParam.value });
+					aOut.push({
+						key: oParam.key,
+						value: oParam.value,
+						dataType: oParam.dataType || "xsd:string"
+					});
 				});
 			});
 			return aOut;

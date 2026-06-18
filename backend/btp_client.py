@@ -11,7 +11,7 @@ Every public function has two branches:
 Reference endpoints (Cloud Integration OData API v1):
   GET  /IntegrationRuntimeArtifacts
   GET  /IntegrationDesigntimeArtifacts(Id='..',Version='..')/Configurations
-  PUT  /IntegrationDesigntimeArtifacts(Id='..',Version='..')/$links/Configurations('key')
+  POST /$batch for configuration changes
   POST /DeployIntegrationDesigntimeArtifact?Id='..'&Version='..'
   GET  /MessageProcessingLogs?$filter=IntegrationFlowName eq '..'
 """
@@ -20,6 +20,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 from typing import List
 from urllib.parse import quote
 
@@ -162,23 +163,67 @@ async def update_configurations(
     if SETTINGS.use_mock:
         return {"id": integration_id, "updated": len(updates)}
 
-    # >>> PLACEHOLDER: PUT each parameter back to the selected designtime artifact <<<
+    if not updates:
+        return {"id": integration_id, "updated": 0}
+
     version = "Active"
+    batch_boundary = "batch_integration_pulse"
+    changeset_boundary = "all_parameters"
+    lines = [
+        f"--{batch_boundary}",
+        f"Content-Type: multipart/mixed; boundary={changeset_boundary}",
+        "",
+    ]
+    for upd in updates:
+        path = (
+            f"IntegrationDesigntimeArtifacts(Id={_odata_literal(integration_id)},"
+            f"Version={_odata_literal(version)})/$links/Configurations"
+            f"({_odata_literal(upd.key)})"
+        )
+        body = {
+            "ParameterKey": upd.key,
+            "ParameterValue": upd.value,
+            "DataType": upd.dataType or "xsd:string",
+        }
+        lines.extend(
+            [
+                f"--{changeset_boundary}",
+                "Content-Type: application/http",
+                "Content-Transfer-Encoding: binary",
+                "",
+                f"PUT {path} HTTP/1.1",
+                "Accept: application/json",
+                "Content-Type: application/json",
+                "",
+                json.dumps(body),
+                "",
+            ]
+        )
+    lines.extend(
+        [
+            f"--{changeset_boundary}--",
+            f"--{batch_boundary}--",
+            "",
+        ]
+    )
+
     token = await get_access_token()
     async with httpx.AsyncClient(timeout=60) as client:
-        for upd in updates:
-            path = (
-                f"/IntegrationDesigntimeArtifacts(Id={_odata_literal(integration_id)},"
-                f"Version={_odata_literal(version)})/$links/Configurations"
-                f"({_odata_literal(upd.key)})"
-            )
-            await client.put(
-                SETTINGS.is_api_base + path,
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "Content-Type": "application/json",
-                },
-                json={"ParameterValue": upd.value},
+        resp = await client.post(
+            SETTINGS.is_api_base + "/$batch",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/json",
+                "Content-Type": f"multipart/mixed; boundary={batch_boundary}",
+            },
+            content="\r\n".join(lines),
+        )
+        resp.raise_for_status()
+        if re.search(r"HTTP/1\.1\s+[45]\d\d", resp.text or ""):
+            raise httpx.HTTPStatusError(
+                "One or more configuration batch updates failed",
+                request=resp.request,
+                response=resp,
             )
     return {"id": integration_id, "updated": len(updates)}
 

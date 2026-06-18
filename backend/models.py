@@ -39,6 +39,7 @@ class ConfigurationUpdate(BaseModel):
 
     key: str
     value: str
+    dataType: str = "xsd:string"
 
 
 class ConfigurationUpdateRequest(BaseModel):

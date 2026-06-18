@@ -72,6 +72,31 @@ sap.ui.define([
 		});
 	}
 
+	function assertBatchSucceeded(sBody) {
+		if (/HTTP\/1\.1\s+[45]\d\d/.test(sBody || "")) {
+			throw new Error("Batch update failed: " + sBody);
+		}
+	}
+
+	function sendText(sUrl, sMethod, sBody, mHeaders) {
+		return fetch(sUrl, {
+			method: sMethod,
+			headers: mHeaders || {},
+			credentials: "include",
+			body: sBody
+		}).then(function (res) {
+			if (!res.ok) {
+				return res.text().then(function (t) {
+					throw new Error(t || (res.status + " " + res.statusText));
+				});
+			}
+			return res.text().then(function (t) {
+				assertBatchSucceeded(t);
+				return { raw: t };
+			});
+		});
+	}
+
 	function odataString(sValue) {
 		return String(sValue || "").replace(/'/g, "''");
 	}
@@ -279,15 +304,43 @@ sap.ui.define([
 		if (!aConfigurations || !aConfigurations.length) {
 			return Promise.resolve({ id: sId, updated: 0 });
 		}
-		var aUpdates = aConfigurations.map(function (oConfig) {
+		var sBatchBoundary = "batch_" + Date.now();
+		var sChangeSetBoundary = "all_parameters";
+		var aLines = [
+			"--" + sBatchBoundary,
+			"Content-Type: multipart/mixed; boundary=" + sChangeSetBoundary,
+			""
+		];
+		aConfigurations.forEach(function (oConfig) {
 			var sPath = "/IntegrationDesigntimeArtifacts(Id=" + odataLiteral(sId) +
 				",Version=" + odataLiteral("Active") + ")/$links/Configurations(" +
 				odataLiteral(oConfig.key) + ")";
-			return sendJSON(getDestinationUrl(sPath), "PUT", {
-				ParameterValue: oConfig.value
-			});
+			aLines = aLines.concat([
+				"--" + sChangeSetBoundary,
+				"Content-Type: application/http",
+				"Content-Transfer-Encoding: binary",
+				"",
+				"PUT " + sPath.slice(1) + " HTTP/1.1",
+				"Accept: application/json",
+				"Content-Type: application/json",
+				"",
+				JSON.stringify({
+					ParameterKey: oConfig.key,
+					ParameterValue: oConfig.value,
+					DataType: oConfig.dataType || "xsd:string"
+				}),
+				""
+			]);
 		});
-		return Promise.all(aUpdates).then(function () {
+		aLines = aLines.concat([
+			"--" + sChangeSetBoundary + "--",
+			"--" + sBatchBoundary + "--",
+			""
+		]);
+		return sendText(getDestinationUrl("/$batch"), "POST", aLines.join("\r\n"), {
+			"Accept": "application/json",
+			"Content-Type": "multipart/mixed; boundary=" + sBatchBoundary
+		}).then(function () {
 			return { id: sId, updated: aConfigurations.length };
 		});
 	}
