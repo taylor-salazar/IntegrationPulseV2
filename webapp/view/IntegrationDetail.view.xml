@@ -94,12 +94,151 @@
 										<Text text="{parameters>key}" class="ipMuted"/>
 									</VBox>
 									<Input
+										visible="{= !${parameters>isTimer} }"
 										width="100%"
 										value="{parameters>value}"
 										type="{= ${parameters>secure} ? 'Password' : 'Text' }"
 										placeholder="{parameters>defaultValue}"
 										liveChange=".onParamChange"
 										editable="{= !${parameters>readOnly} }"/>
+									<VBox visible="{parameters>isTimer}" class="ipTimerEditor">
+										<HBox wrap="Wrap" class="ipTimerLayout">
+											<VBox class="ipTimerModeRail">
+												<RadioButtonGroup
+													columns="1"
+													selectedIndex="{parameters>schedule/modeIndex}"
+													select=".onTimerModeSelect"
+													enabled="{= !${parameters>readOnly} }">
+													<buttons>
+														<RadioButton text="{i18n>timerRunOnce}"/>
+														<RadioButton text="{i18n>timerScheduleOnDay}"/>
+														<RadioButton text="{i18n>timerScheduleToRecur}"/>
+														<RadioButton text="{i18n>timerAdvanced}"/>
+													</buttons>
+												</RadioButtonGroup>
+											</VBox>
+
+											<VBox class="ipTimerBody">
+												<HBox visible="{= ${parameters>schedule/mode} === 'once' }" wrap="Wrap" class="ipTimerRow">
+													<VBox class="ipTimerField">
+														<Label text="{i18n>timerDate}"/>
+														<DatePicker value="{parameters>schedule/onceDate}" valueFormat="yyyy-MM-dd" displayFormat="medium" change=".onTimerScheduleChange"/>
+													</VBox>
+													<VBox class="ipTimerField">
+														<Label text="{i18n>timerTime}"/>
+														<TimePicker value="{parameters>schedule/onceTime}" valueFormat="HH:mm" displayFormat="HH:mm" change=".onTimerScheduleChange"/>
+													</VBox>
+												</HBox>
+
+												<HBox visible="{= ${parameters>schedule/mode} === 'day' }" wrap="Wrap" class="ipTimerRow">
+													<VBox class="ipTimerField ipTimerWideField">
+														<Label text="{i18n>timerDaysOfWeek}"/>
+														<MultiComboBox
+															width="100%"
+															selectedKeys="{parameters>schedule/dayWeekdays}"
+															selectionFinish=".onTimerScheduleChange"
+															items="{scheduleOptions>/weekdays}">
+															<core:Item key="{scheduleOptions>key}" text="{scheduleOptions>text}"/>
+														</MultiComboBox>
+													</VBox>
+													<VBox class="ipTimerField">
+														<Label text="{i18n>timerTime}"/>
+														<TimePicker value="{parameters>schedule/dayTime}" valueFormat="HH:mm" displayFormat="HH:mm" change=".onTimerScheduleChange"/>
+													</VBox>
+												</HBox>
+
+												<HBox visible="{= ${parameters>schedule/mode} === 'recur' }" wrap="Wrap" class="ipTimerRow">
+													<VBox class="ipTimerField">
+														<Label text="{i18n>timerEvery}"/>
+														<StepInput value="{parameters>schedule/recurEvery}" min="1" max="999" change=".onTimerScheduleChange"/>
+													</VBox>
+													<VBox class="ipTimerField">
+														<Label text="{i18n>timerUnit}"/>
+														<Select selectedKey="{parameters>schedule/recurUnit}" change=".onTimerScheduleChange" items="{scheduleOptions>/recurUnits}">
+															<core:Item key="{scheduleOptions>key}" text="{scheduleOptions>text}"/>
+														</Select>
+													</VBox>
+													<VBox class="ipTimerField" visible="{= ${parameters>schedule/recurUnit} === 'days' }">
+														<Label text="{i18n>timerStartingAt}"/>
+														<TimePicker value="{parameters>schedule/recurStartTime}" valueFormat="HH:mm" displayFormat="HH:mm" change=".onTimerScheduleChange"/>
+													</VBox>
+												</HBox>
+
+												<VBox visible="{= ${parameters>schedule/mode} === 'advanced' }" class="ipTimerAdvanced">
+													<Text text="{i18n>timerAdvancedHelp}" class="ipMuted sapUiTinyMarginBottom"/>
+													<HBox wrap="Wrap" class="ipTimerRow">
+														<VBox class="ipTimerField">
+															<Label text="{i18n>timerSeconds}"/>
+															<Select selectedKey="{parameters>schedule/secondMode}" change=".onTimerScheduleChange" items="{scheduleOptions>/secondModes}">
+																<core:Item key="{scheduleOptions>key}" text="{scheduleOptions>text}"/>
+															</Select>
+															<MultiComboBox selectedKeys="{parameters>schedule/seconds}" selectionFinish=".onTimerScheduleChange" items="{scheduleOptions>/seconds}">
+																<core:Item key="{scheduleOptions>key}" text="{scheduleOptions>text}"/>
+															</MultiComboBox>
+														</VBox>
+														<VBox class="ipTimerField">
+															<Label text="{i18n>timerMinutes}"/>
+															<Select selectedKey="{parameters>schedule/minuteMode}" change=".onTimerScheduleChange" items="{scheduleOptions>/minuteModes}">
+																<core:Item key="{scheduleOptions>key}" text="{scheduleOptions>text}"/>
+															</Select>
+															<MultiComboBox selectedKeys="{parameters>schedule/minutes}" selectionFinish=".onTimerScheduleChange" items="{scheduleOptions>/minutes}">
+																<core:Item key="{scheduleOptions>key}" text="{scheduleOptions>text}"/>
+															</MultiComboBox>
+														</VBox>
+														<VBox class="ipTimerField">
+															<Label text="{i18n>timerHours}"/>
+															<Select selectedKey="{parameters>schedule/hourMode}" change=".onTimerScheduleChange" items="{scheduleOptions>/hourModes}">
+																<core:Item key="{scheduleOptions>key}" text="{scheduleOptions>text}"/>
+															</Select>
+															<MultiComboBox selectedKeys="{parameters>schedule/hours}" selectionFinish=".onTimerScheduleChange" items="{scheduleOptions>/hours}">
+																<core:Item key="{scheduleOptions>key}" text="{scheduleOptions>text}"/>
+															</MultiComboBox>
+														</VBox>
+														<VBox class="ipTimerField">
+															<Label text="{i18n>timerDays}"/>
+															<Select selectedKey="{parameters>schedule/dayMode}" change=".onTimerScheduleChange" items="{scheduleOptions>/dayModes}">
+																<core:Item key="{scheduleOptions>key}" text="{scheduleOptions>text}"/>
+															</Select>
+															<MultiComboBox selectedKeys="{parameters>schedule/days}" selectionFinish=".onTimerScheduleChange" items="{scheduleOptions>/days}">
+																<core:Item key="{scheduleOptions>key}" text="{scheduleOptions>text}"/>
+															</MultiComboBox>
+														</VBox>
+														<VBox class="ipTimerField">
+															<Label text="{i18n>timerMonths}"/>
+															<Select selectedKey="{parameters>schedule/monthMode}" change=".onTimerScheduleChange" items="{scheduleOptions>/monthModes}">
+																<core:Item key="{scheduleOptions>key}" text="{scheduleOptions>text}"/>
+															</Select>
+															<MultiComboBox selectedKeys="{parameters>schedule/months}" selectionFinish=".onTimerScheduleChange" items="{scheduleOptions>/months}">
+																<core:Item key="{scheduleOptions>key}" text="{scheduleOptions>text}"/>
+															</MultiComboBox>
+														</VBox>
+														<VBox class="ipTimerField">
+															<Label text="{i18n>timerYears}"/>
+															<Select selectedKey="{parameters>schedule/yearMode}" change=".onTimerScheduleChange" items="{scheduleOptions>/yearModes}">
+																<core:Item key="{scheduleOptions>key}" text="{scheduleOptions>text}"/>
+															</Select>
+															<MultiComboBox selectedKeys="{parameters>schedule/years}" selectionFinish=".onTimerScheduleChange" items="{scheduleOptions>/years}">
+																<core:Item key="{scheduleOptions>key}" text="{scheduleOptions>text}"/>
+															</MultiComboBox>
+														</VBox>
+													</HBox>
+												</VBox>
+											</VBox>
+										</HBox>
+
+										<HBox alignItems="Center" wrap="Wrap" class="ipTimerRow">
+											<VBox class="ipTimerField ipTimerWideField">
+												<Label text="{i18n>timerTimeZone}"/>
+												<Select width="100%" selectedKey="{parameters>schedule/timeZone}" change=".onTimerScheduleChange" items="{scheduleOptions>/timeZones}">
+													<core:Item key="{scheduleOptions>key}" text="{scheduleOptions>text}"/>
+												</Select>
+											</VBox>
+											<VBox class="ipTimerField ipTimerCronPreview">
+												<Label text="{i18n>timerCronPreview}"/>
+												<Text text="{parameters>value}" class="ipMuted"/>
+											</VBox>
+										</HBox>
+									</VBox>
 								</VBox>
 							</items>
 						</FlexBox>

@@ -154,9 +154,68 @@ html, body, #content {
 	border-right: 1px solid var(--sapList_BorderColor, #e5e5e5);
 }
 
+.ipParamCell:has(.ipTimerEditor) {
+	width: 100%;
+	min-width: 100%;
+	border-right: none;
+}
+
 .ipParamLabel {
 	min-width: 0;
 	padding: 0 0 0.35rem 0;
+}
+
+.ipTimerEditor {
+	max-width: 92rem;
+	padding-top: 0.25rem;
+}
+
+.ipTimerLayout {
+	gap: 1.5rem;
+	align-items: flex-start;
+}
+
+.ipTimerModeRail {
+	width: 13rem;
+	padding-top: 0.15rem;
+	flex-shrink: 0;
+}
+
+.ipTimerModeRail .sapMRb {
+	margin-bottom: 0.35rem;
+}
+
+.ipTimerBody {
+	min-width: 0;
+	flex: 1 1 48rem;
+}
+
+.ipTimerRow {
+	gap: 0.5rem;
+	margin-bottom: 0.75rem;
+}
+
+.ipTimerField {
+	width: 16rem;
+	min-width: 14rem;
+}
+
+.ipTimerWideField {
+	width: 22rem;
+}
+
+.ipTimerField .sapMSelect,
+.ipTimerField .sapMMultiComboBox,
+.ipTimerField .sapMInputBase {
+	width: 100%;
+}
+
+.ipTimerAdvanced {
+	margin-top: 0.25rem;
+}
+
+.ipTimerCronPreview {
+	width: 28rem;
 }
 
 .ipPage .sapMPageHeader .sapMTitle {

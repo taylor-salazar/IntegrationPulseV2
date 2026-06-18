@@ -19,6 +19,59 @@ sap.ui.define([
 		general: "General"
 	};
 
+	function pad2(v) {
+		return String(Number(v) || 0).padStart(2, "0");
+	}
+
+	function cronStartValue(sField, sFallback) {
+		if (!sField || sField === "*" || sField === "?") {
+			return sFallback;
+		}
+		return String(sField).split("/")[0].split(",")[0];
+	}
+
+	function ordinal(i) {
+		var j = i % 10;
+		var k = i % 100;
+		if (j === 1 && k !== 11) { return i + "st"; }
+		if (j === 2 && k !== 12) { return i + "nd"; }
+		if (j === 3 && k !== 13) { return i + "rd"; }
+		return i + "th";
+	}
+
+	function range(iStart, iEnd, fnLabel) {
+		var aItems = [];
+		for (var i = iStart; i <= iEnd; i += 1) {
+			aItems.push({ key: String(i), text: fnLabel ? fnLabel(i) : String(i) });
+		}
+		return aItems;
+	}
+
+	var MONTHS = [
+		{ key: "JAN", text: "January" },
+		{ key: "FEB", text: "February" },
+		{ key: "MAR", text: "March" },
+		{ key: "APR", text: "April" },
+		{ key: "MAY", text: "May" },
+		{ key: "JUN", text: "June" },
+		{ key: "JUL", text: "July" },
+		{ key: "AUG", text: "August" },
+		{ key: "SEP", text: "September" },
+		{ key: "OCT", text: "October" },
+		{ key: "NOV", text: "November" },
+		{ key: "DEC", text: "December" }
+	];
+
+	var WEEKDAYS = [
+		{ key: "MON", text: "Monday" },
+		{ key: "TUE", text: "Tuesday" },
+		{ key: "WED", text: "Wednesday" },
+		{ key: "THU", text: "Thursday" },
+		{ key: "FRI", text: "Friday" },
+		{ key: "SAT", text: "Saturday" },
+		{ key: "SUN", text: "Sunday" }
+	];
+
 	return BaseController.extend("integrationpulse.controller.IntegrationDetail", {
 
 		onInit: function () {
@@ -26,6 +79,7 @@ sap.ui.define([
 			this.setModel(new JSONModel({ groups: [] }), "parameters");
 			this.setModel(new JSONModel({ items: [] }), "payloads");
 			this.setModel(new JSONModel({}), "payloadDetail");
+			this.setModel(new JSONModel(this._createScheduleOptions()), "scheduleOptions");
 			this.setModel(new JSONModel({ busy: false, dirty: false }), "detailView");
 
 			this.getRouter().getRoute("integrationDetail").attachPatternMatched(this._onMatched, this);
@@ -85,9 +139,11 @@ sap.ui.define([
 					defaultValue: oParam.defaultValue || "",
 					dataType: oParam.dataType || "xsd:string",
 					secure: !!oParam.secure,
-					readOnly: !!oParam.readOnly
+					readOnly: !!oParam.readOnly,
+					isTimer: this._isTimerParam(oParam),
+					schedule: this._scheduleFromCron(oParam.value || oParam.defaultValue || "")
 				});
-			});
+			}.bind(this));
 			// Stable, business-friendly order.
 			var aOrder = ["extract", "filter", "include", "delivery", "audit", "sftp", "general"];
 			return Object.keys(mGroups).sort(function (a, b) {
@@ -118,7 +174,208 @@ sap.ui.define([
 			this.getModel("detailView").setProperty("/dirty", bDirty);
 		},
 
+		_scheduleModeFromIndex: function (iIndex) {
+			return ["once", "day", "recur", "advanced"][Number(iIndex) || 0] || "advanced";
+		},
+
+		_scheduleModeToIndex: function (sMode) {
+			var iIndex = ["once", "day", "recur", "advanced"].indexOf(sMode);
+			return iIndex > -1 ? iIndex : 3;
+		},
+
 		onParamChange: function () {
+			this._recomputeDirty();
+		},
+
+		_createScheduleOptions: function () {
+			return {
+				frequencyModes: [
+					{ key: "once", text: "Run Once" },
+					{ key: "day", text: "Schedule on Day" },
+					{ key: "recur", text: "Schedule to Recur" },
+					{ key: "advanced", text: "Advanced" }
+				],
+				secondModes: [
+					{ key: "specific", text: "Specific seconds" },
+					{ key: "every", text: "Every second" },
+					{ key: "start", text: "Every 1 second starting at" }
+				],
+				minuteModes: [
+					{ key: "specific", text: "Specific minutes" },
+					{ key: "every", text: "Every minute" },
+					{ key: "start", text: "Every 1 minute starting at" }
+				],
+				hourModes: [
+					{ key: "specific", text: "Specific hours" },
+					{ key: "every", text: "Every hour" },
+					{ key: "start", text: "Every 1 hour starting at" }
+				],
+				dayModes: [
+					{ key: "every", text: "Every day" },
+					{ key: "specific", text: "Specific days" }
+				],
+				monthModes: [
+					{ key: "every", text: "Every month" },
+					{ key: "specific", text: "Specific months" }
+				],
+				yearModes: [
+					{ key: "every", text: "Every year" },
+					{ key: "specific", text: "Specific years" }
+				],
+				seconds: range(0, 59, function (i) { return ordinal(i); }),
+				minutes: range(0, 59, function (i) { return ordinal(i) + " minute"; }),
+				hours: range(0, 23, function (i) { return ordinal(i) + " hour"; }),
+				days: range(1, 31, ordinal),
+				months: MONTHS,
+				years: range(new Date().getFullYear(), new Date().getFullYear() + 10),
+				weekdays: WEEKDAYS,
+				recurUnits: [
+					{ key: "minutes", text: "Minutes" },
+					{ key: "hours", text: "Hours" },
+					{ key: "days", text: "Days" }
+				],
+				timeZones: [
+					{ key: "America/Los_Angeles", text: "America/Los Angeles (PT)" },
+					{ key: "America/New_York", text: "America/New York (ET)" },
+					{ key: "UTC", text: "UTC" },
+					{ key: "Europe/London", text: "Europe/London" }
+				]
+			};
+		},
+
+		_isTimerParam: function (oParam) {
+			var sText = [oParam.key, oParam.label].join(" ").toLowerCase();
+			return /\b(timer|cron|schedule|frequency)\b/.test(sText);
+		},
+
+		_scheduleFromCron: function (sValue) {
+			var sCron = String(sValue || "").trim();
+			var sTimeZone = "America/Los_Angeles";
+			var aTz = sCron.match(/--tz=([^\s]+)/);
+			if (aTz) {
+				sTimeZone = aTz[1];
+				sCron = sCron.replace(/\s*--tz=[^\s]+/, "");
+			}
+			var aParts = sCron.split(/\s+/);
+			var sSeconds = aParts[0] || "0";
+			var sMinutes = aParts[1] || "0";
+			var sHours = aParts[2] || "0";
+			var sDays = aParts[3] || "*";
+			var sMonths = aParts[4] || "*";
+			var sWeekdays = aParts[5] || "?";
+			var sYears = aParts[6] || "*";
+			var sToday = new Date().toISOString().slice(0, 10);
+			var sDisplayHour = cronStartValue(sHours, "0");
+			var sDisplayMinute = cronStartValue(sMinutes, "0");
+			return {
+				mode: "advanced",
+				modeIndex: 3,
+				onceDate: sToday,
+				onceTime: pad2(sDisplayHour) + ":" + pad2(sDisplayMinute),
+				dayWeekdays: sWeekdays && sWeekdays !== "?" && sWeekdays !== "*" ? sWeekdays.split(",") : ["MON"],
+				dayTime: pad2(sHours === "*" ? 9 : sDisplayHour) + ":" + pad2(sDisplayMinute),
+				recurEvery: "1",
+				recurUnit: "hours",
+				recurStartTime: "09:00",
+				secondMode: sSeconds === "*" ? "every" : (sSeconds.indexOf("/") > -1 ? "start" : "specific"),
+				minuteMode: sMinutes === "*" ? "every" : (sMinutes.indexOf("/") > -1 ? "start" : "specific"),
+				hourMode: sHours === "*" ? "every" : (sHours.indexOf("/") > -1 ? "start" : "specific"),
+				dayMode: sDays === "*" || sDays === "?" ? "every" : "specific",
+				monthMode: sMonths === "*" ? "every" : "specific",
+				yearMode: sYears === "*" ? "every" : "specific",
+				seconds: this._cronFieldToKeys(sSeconds, "0"),
+				minutes: this._cronFieldToKeys(sMinutes, "0"),
+				hours: this._cronFieldToKeys(sHours, "0"),
+				days: this._cronFieldToKeys(sDays, "1"),
+				months: this._cronFieldToKeys(sMonths, "JAN"),
+				years: this._cronFieldToKeys(sYears, String(new Date().getFullYear())),
+				timeZone: sTimeZone
+			};
+		},
+
+		_cronFieldToKeys: function (sField, sFallback) {
+			if (!sField || sField === "*" || sField === "?") {
+				return [sFallback];
+			}
+			if (sField.indexOf("/") > -1) {
+				return [sField.split("/")[0]];
+			}
+			return sField.split(",");
+		},
+
+		_keysToCronField: function (sMode, aValues, sEvery, sPrefix) {
+			var aKeys = aValues && aValues.length ? aValues : [sEvery];
+			if (sMode === "every") {
+				return "*";
+			}
+			if (sMode === "start") {
+				return aKeys[0] + "/1";
+			}
+			if (sPrefix) {
+				return aKeys.map(function (sKey) { return sPrefix + sKey; }).join(",");
+			}
+			return aKeys.join(",");
+		},
+
+		_scheduleToCron: function (oSchedule) {
+			var sTz = oSchedule.timeZone ? " --tz=" + oSchedule.timeZone : "";
+			if (oSchedule.mode === "once") {
+				var aDate = (oSchedule.onceDate || "").split("-");
+				var aTime = (oSchedule.onceTime || "00:00").split(":");
+				var sMonth = MONTHS[Number(aDate[1] || 1) - 1].key;
+				return "0 " + Number(aTime[1] || 0) + " " + Number(aTime[0] || 0) + " " +
+					Number(aDate[2] || 1) + " " + sMonth + " ? " + (aDate[0] || "*") + sTz;
+			}
+			if (oSchedule.mode === "day") {
+				var aDayTime = (oSchedule.dayTime || "09:00").split(":");
+				return "0 " + Number(aDayTime[1] || 0) + " " + Number(aDayTime[0] || 0) +
+					" ? * " + (oSchedule.dayWeekdays || ["MON"]).join(",") + " *" + sTz;
+			}
+			if (oSchedule.mode === "recur") {
+				var nEvery = Math.max(Number(oSchedule.recurEvery || 1), 1);
+				if (oSchedule.recurUnit === "minutes") {
+					return "0 0/" + nEvery + " * ? * * *" + sTz;
+				}
+				if (oSchedule.recurUnit === "hours") {
+					return "0 0 0/" + nEvery + " ? * * *" + sTz;
+				}
+				var aStartTime = (oSchedule.recurStartTime || "09:00").split(":");
+				return "0 " + Number(aStartTime[1] || 0) + " " + Number(aStartTime[0] || 0) +
+					" 1/" + nEvery + " * ? *" + sTz;
+			}
+			return [
+				this._keysToCronField(oSchedule.secondMode, oSchedule.seconds, "0"),
+				this._keysToCronField(oSchedule.minuteMode, oSchedule.minutes, "0"),
+				this._keysToCronField(oSchedule.hourMode, oSchedule.hours, "0"),
+				this._keysToCronField(oSchedule.dayMode, oSchedule.days, "*"),
+				this._keysToCronField(oSchedule.monthMode, oSchedule.months, "*"),
+				"?",
+				this._keysToCronField(oSchedule.yearMode, oSchedule.years, "*")
+			].join(" ") + sTz;
+		},
+
+		onTimerScheduleChange: function (oEvent) {
+			var oCtx = oEvent.getSource().getBindingContext("parameters");
+			var oParam = oCtx && oCtx.getObject();
+			if (!oParam || !oParam.schedule) {
+				return;
+			}
+			oParam.schedule.modeIndex = this._scheduleModeToIndex(oParam.schedule.mode);
+			oParam.value = this._scheduleToCron(oParam.schedule);
+			this.getModel("parameters").refresh(true);
+			this._recomputeDirty();
+		},
+
+		onTimerModeSelect: function (oEvent) {
+			var oCtx = oEvent.getSource().getBindingContext("parameters");
+			var oParam = oCtx && oCtx.getObject();
+			if (!oParam || !oParam.schedule) {
+				return;
+			}
+			oParam.schedule.modeIndex = oEvent.getParameter("selectedIndex");
+			oParam.schedule.mode = this._scheduleModeFromIndex(oParam.schedule.modeIndex);
+			oParam.value = this._scheduleToCron(oParam.schedule);
+			this.getModel("parameters").refresh(true);
 			this._recomputeDirty();
 		},
 
@@ -128,8 +385,11 @@ sap.ui.define([
 			aGroups.forEach(function (oGroup) {
 				oGroup.params.forEach(function (oParam) {
 					oParam.value = oParam.pristineValue;
-				});
-			});
+					if (oParam.isTimer) {
+						oParam.schedule = this._scheduleFromCron(oParam.pristineValue);
+					}
+				}.bind(this));
+			}.bind(this));
 			oModel.setProperty("/groups", aGroups);
 			this.getModel("detailView").setProperty("/dirty", false);
 		},
