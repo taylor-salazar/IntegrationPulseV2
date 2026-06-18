@@ -113,6 +113,10 @@ sap.ui.define([], function () {
 		 */
 		errorState: function (iErrors) {
 			return Number(iErrors) > 0 ? "Error" : "None";
+		},
+
+		formatMessage: function (sText, sValue) {
+			return String(sText || "").replace("{0}", sValue || "");
 		}
 	};
 });

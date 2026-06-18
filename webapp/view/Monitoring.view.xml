@@ -10,6 +10,8 @@
 				<Text text="{i18n>monitoringSubtitle}" class="ipSubtitle"/>
 				<ToolbarSpacer/>
 				<SearchField width="16rem" placeholder="{i18n>searchIntegrations}" liveChange=".onSearch"/>
+				<Button text="{i18n>sortBySourceSystem}" type="{= ${view>/groupMode} === 'source' ? 'Emphasized' : 'Default' }" press=".onGroupBySource"/>
+				<Button text="{i18n>sortByTargetSystem}" type="{= ${view>/groupMode} === 'target' ? 'Emphasized' : 'Default' }" press=".onGroupByTarget"/>
 				<ToggleButton text="{i18n>autoRefresh}" icon="sap-icon://synchronize" pressed="{view>/autoRefresh}" press=".onToggleAutoRefresh"/>
 				<Button icon="sap-icon://refresh" tooltip="{i18n>refresh}" press=".onRefresh"/>
 			</OverflowToolbar>
@@ -55,7 +57,7 @@
 				</HBox>
 
 				<VBox class="ipMonitorSection">
-					<Title text="{i18n>monitoringRecentVendors}" level="H3" class="ipMonitorSectionTitle"/>
+					<Title text="{parts: [{path: 'i18n>monitoringRecentVendors'}, {path: 'view>/groupLabel'}], formatter: '.formatter.formatMessage'}" level="H3" class="ipMonitorSectionTitle"/>
 					<FlexBox
 						wrap="Wrap"
 						class="ipMonitorVendorGrid"
@@ -68,10 +70,6 @@
 											<Text text="{monitoring>name}" class="ipMonitorVendorName"/>
 											<Text text="{monitoring>subtitle}" class="ipMonitorVendorSubtitle"/>
 										</VBox>
-										<ToolbarSpacer/>
-										<ObjectStatus
-											text="{monitoring>total}"
-											state="{monitoring>primaryStatus}"/>
 									</HBox>
 									<HBox class="ipMonitorVendorCounts">
 										<VBox>
@@ -89,19 +87,19 @@
 									</HBox>
 									<VBox visible="{monitoring>isExpanded}" class="ipMonitorTileDropdown">
 										<BusyIndicator visible="{monitoring>isLoading}" size="1rem"/>
-										<VBox items="{monitoring>recentRuns}">
+										<VBox items="{monitoring>integrations}">
 											<items>
 												<VBox class="ipMonitorRunSummary">
-												<HBox alignItems="Center">
-													<ObjectStatus
-														text="{monitoring>status}"
-														state="{path: 'monitoring>status', formatter: '.formatter.logState'}"/>
-													<ToolbarSpacer/>
-													<Text text="{path: 'monitoring>logEnd', formatter: '.formatter.dateTime'}" class="ipMuted"/>
-												</HBox>
-												<Text text="{monitoring>name}" class="ipMonitorRunName"/>
-												<Text text="{monitoring>errorMessage}" visible="{= !!${monitoring>errorMessage} }" class="ipMonitorRunError"/>
-												<Button text="{i18n>showPreviousRuns}" type="Transparent" icon="sap-icon://history" press=".onShowPreviousRuns"/>
+													<HBox alignItems="Center">
+														<ObjectStatus
+															text="{monitoring>latestSummary/status}"
+															state="{path: 'monitoring>latestSummary/status', formatter: '.formatter.logState'}"/>
+														<ToolbarSpacer/>
+														<Text text="{path: 'monitoring>latestSummary/logEnd', formatter: '.formatter.dateTime'}" class="ipMuted"/>
+													</HBox>
+													<Text text="{monitoring>name}" class="ipMonitorRunName"/>
+													<Text text="{monitoring>latestSummary/errorMessage}" visible="{= !!${monitoring>latestSummary/errorMessage} }" class="ipMonitorRunError"/>
+													<Button text="{i18n>showPreviousRuns}" type="Transparent" icon="sap-icon://history" press=".onShowPreviousRuns"/>
 												</VBox>
 											</items>
 										</VBox>
@@ -112,8 +110,11 @@
 					</FlexBox>
 				</VBox>
 
-				<VBox class="ipMonitorSection">
-					<Title text="{i18n>monitoringDeployedVendors}" level="H3" class="ipMonitorSectionTitle"/>
+				<Panel
+					headerText="{parts: [{path: 'i18n>monitoringDeployedVendors'}, {path: 'view>/groupLabel'}], formatter: '.formatter.formatMessage'}"
+					expandable="true"
+					expanded="false"
+					class="ipMonitorDeployedPanel">
 					<FlexBox
 						wrap="Wrap"
 						class="ipMonitorVendorGrid"
@@ -126,10 +127,6 @@
 											<Text text="{monitoring>name}" class="ipMonitorVendorName"/>
 											<Text text="{monitoring>subtitle}" class="ipMonitorVendorSubtitle"/>
 										</VBox>
-										<ToolbarSpacer/>
-										<ObjectStatus
-											text="{monitoring>total}"
-											state="{monitoring>primaryStatus}"/>
 									</HBox>
 									<HBox class="ipMonitorVendorCounts">
 										<VBox>
@@ -147,19 +144,19 @@
 									</HBox>
 									<VBox visible="{monitoring>isExpanded}" class="ipMonitorTileDropdown">
 										<BusyIndicator visible="{monitoring>isLoading}" size="1rem"/>
-										<VBox items="{monitoring>recentRuns}">
+										<VBox items="{monitoring>integrations}">
 											<items>
 												<VBox class="ipMonitorRunSummary">
-												<HBox alignItems="Center">
-													<ObjectStatus
-														text="{monitoring>status}"
-														state="{path: 'monitoring>status', formatter: '.formatter.logState'}"/>
-													<ToolbarSpacer/>
-													<Text text="{path: 'monitoring>logEnd', formatter: '.formatter.dateTime'}" class="ipMuted"/>
-												</HBox>
-												<Text text="{monitoring>name}" class="ipMonitorRunName"/>
-												<Text text="{monitoring>errorMessage}" visible="{= !!${monitoring>errorMessage} }" class="ipMonitorRunError"/>
-												<Button text="{i18n>showPreviousRuns}" type="Transparent" icon="sap-icon://history" press=".onShowPreviousRuns"/>
+													<HBox alignItems="Center">
+														<ObjectStatus
+															text="{monitoring>latestSummary/status}"
+															state="{path: 'monitoring>latestSummary/status', formatter: '.formatter.logState'}"/>
+														<ToolbarSpacer/>
+														<Text text="{path: 'monitoring>latestSummary/logEnd', formatter: '.formatter.dateTime'}" class="ipMuted"/>
+													</HBox>
+													<Text text="{monitoring>name}" class="ipMonitorRunName"/>
+													<Text text="{monitoring>latestSummary/errorMessage}" visible="{= !!${monitoring>latestSummary/errorMessage} }" class="ipMonitorRunError"/>
+													<Button text="{i18n>showPreviousRuns}" type="Transparent" icon="sap-icon://history" press=".onShowPreviousRuns"/>
 												</VBox>
 											</items>
 										</VBox>
@@ -168,7 +165,7 @@
 							</CustomTile>
 						</items>
 					</FlexBox>
-				</VBox>
+				</Panel>
 			</VBox>
 		</content>
 	</Page>

@@ -15,14 +15,15 @@ sap.ui.define([
 			.trim();
 	}
 
-	function vendorFromName(oItem) {
-		var sVendor = oItem.receiver || oItem.targetSystem || oItem.target || "";
-		var sName = oItem.name || oItem.id || "";
-		var aParts = sName.split(/\s*(?:->|→|to)\s*/i);
-		if (!sVendor && aParts.length > 1) {
-			sVendor = aParts[aParts.length - 1];
+	function systemFromItem(oItem, sMode) {
+		var sSystem = sMode === "source" ?
+			(oItem.sender || oItem.sourceSystem || oItem.source || "") :
+			(oItem.receiver || oItem.targetSystem || oItem.target || "");
+		var aParts = String(oItem.name || oItem.id || "").split(/\s*(?:->|to)\s*/i);
+		if (!sSystem && aParts.length > 1) {
+			sSystem = sMode === "source" ? aParts[0] : aParts[aParts.length - 1];
 		}
-		return normalizeSystemName(sVendor || oItem.packageName || "Unknown Vendor");
+		return normalizeSystemName(sSystem || "Unknown System");
 	}
 
 	function latestLog(aLogs) {
@@ -88,6 +89,8 @@ sap.ui.define([
 				isMock: BackendClient.isMock(),
 				autoRefresh: false,
 				query: "",
+				groupMode: "source",
+				groupLabel: this.getText("sourceSystemCategory"),
 				kpi: {
 					started: 0,
 					error: 0,
@@ -114,7 +117,8 @@ sap.ui.define([
 				return (aItems || []).map(function (oItem) {
 					var sHealth = healthFromStatus(oItem, null);
 					return Object.assign({}, oItem, {
-						vendor: vendorFromName(oItem),
+						sourceSystem: systemFromItem(oItem, "source"),
+						targetSystem: systemFromItem(oItem, "target"),
 						logs: [],
 						logsLoaded: false,
 						latestLog: null,
@@ -136,29 +140,31 @@ sap.ui.define([
 
 		_applyViewData: function () {
 			var sQuery = (this.getModel("view").getProperty("/query") || "").toLowerCase();
+			var sMode = this.getModel("view").getProperty("/groupMode") || "source";
 			var aItems = (this._aAllItems || []).filter(function (oItem) {
 				if (!sQuery) {
 					return true;
 				}
-				return [oItem.name, oItem.packageName, oItem.vendor, oItem.status].join(" ").toLowerCase().indexOf(sQuery) > -1;
+				return [oItem.name, oItem.packageName, oItem.sourceSystem, oItem.targetSystem, oItem.status]
+					.join(" ").toLowerCase().indexOf(sQuery) > -1;
 			});
 			this.getModel("monitoring").setData({
 				items: aItems,
-				recentVendors: this._groupVendors(aItems.filter(function (oItem) { return oItem.ran24h; }), true, "recentVendors"),
-				deployedVendors: this._groupVendors(aItems, false, "deployedVendors")
+				recentVendors: this._groupSystems(aItems.filter(function (oItem) { return oItem.ran24h; }), true, "recentVendors", sMode),
+				deployedVendors: this._groupSystems(aItems, false, "deployedVendors", sMode)
 			});
 			this._computeKpis(aItems);
 		},
 
-		_groupVendors: function (aItems, bRecentOnly, sCollection) {
+		_groupSystems: function (aItems, bRecentOnly, sCollection, sMode) {
 			var mGroups = {};
 			aItems.forEach(function (oItem) {
-				var sVendor = oItem.vendor || "Unknown Vendor";
-				var sKey = sVendor.toLowerCase();
+				var sSystem = sMode === "target" ? oItem.targetSystem : oItem.sourceSystem;
+				var sKey = (sSystem || "Unknown System").toLowerCase();
 				if (!mGroups[sKey]) {
 					mGroups[sKey] = {
 						id: encodeURIComponent(sKey),
-						name: sVendor,
+						name: sSystem || "Unknown System",
 						subtitle: bRecentOnly ? this.getText("monitoringTileRecentSubtitle") : this.getText("monitoringTileDeployedSubtitle"),
 						total: 0,
 						passed: 0,
@@ -166,11 +172,10 @@ sap.ui.define([
 						warnings: 0,
 						messages24h: 0,
 						errors24h: 0,
-						isExpanded: this._mExpandedVendors && this._mExpandedVendors[sCollection] === sVendor,
+						isExpanded: this._mExpandedVendors && this._mExpandedVendors[sCollection] === (sSystem || "Unknown System"),
 						isLoading: false,
 						logsLoaded: true,
-						integrations: [],
-						recentRuns: []
+						integrations: []
 					};
 				}
 				var oGroup = mGroups[sKey];
@@ -180,12 +185,13 @@ sap.ui.define([
 				oGroup[oItem.health === "failed" ? "failed" : (oItem.health === "warning" ? "warnings" : "passed")] += 1;
 				oGroup.logsLoaded = oGroup.logsLoaded && !!oItem.logsLoaded;
 				oGroup.integrations.push(oItem);
-				oGroup.recentRuns.push(oItem.latestSummary);
 			}.bind(this));
 			return Object.keys(mGroups).map(function (sKey) {
 				var oGroup = mGroups[sKey];
-				oGroup.recentRuns.sort(function (a, b) {
-					return new Date(b.logEnd || 0).getTime() - new Date(a.logEnd || 0).getTime();
+				oGroup.integrations.sort(function (a, b) {
+					var nTimeDiff = new Date((b.latestSummary && b.latestSummary.logEnd) || b.lastDeployed || 0).getTime() -
+						new Date((a.latestSummary && a.latestSummary.logEnd) || a.lastDeployed || 0).getTime();
+					return nTimeDiff || (a.name || "").localeCompare(b.name || "");
 				});
 				oGroup.primaryStatus = oGroup.failed ? "Error" : (oGroup.warnings ? "Warning" : "Success");
 				return oGroup;
@@ -242,10 +248,10 @@ sap.ui.define([
 			}
 		},
 
-		_loadVendorRuns: function (sCollection, sVendor) {
+		_loadVendorRuns: function (sCollection, sSystem) {
 			var that = this;
 			var aGroups = this.getModel("monitoring").getProperty("/" + sCollection) || [];
-			var oGroup = aGroups.filter(function (oCandidate) { return oCandidate.name === sVendor; })[0];
+			var oGroup = aGroups.filter(function (oCandidate) { return oCandidate.name === sSystem; })[0];
 			if (!oGroup) {
 				return;
 			}
@@ -276,6 +282,20 @@ sap.ui.define([
 				});
 				that._applyViewData();
 			});
+		},
+
+		onGroupBySource: function () {
+			this.getModel("view").setProperty("/groupMode", "source");
+			this.getModel("view").setProperty("/groupLabel", this.getText("sourceSystemCategory"));
+			this._mExpandedVendors = {};
+			this._applyViewData();
+		},
+
+		onGroupByTarget: function () {
+			this.getModel("view").setProperty("/groupMode", "target");
+			this.getModel("view").setProperty("/groupLabel", this.getText("targetSystemCategory"));
+			this._mExpandedVendors = {};
+			this._applyViewData();
 		},
 
 		onToggleRecentVendor: function (oEvent) {
