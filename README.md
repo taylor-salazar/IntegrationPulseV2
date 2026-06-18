@@ -100,6 +100,24 @@ The frontend never changes when you go live — it only talks to the proxy via
 
 ---
 
+## Payload storage
+
+The payload receiver API stores captured payloads in PostgreSQL. In BTP Cloud
+Foundry, bind the PostgreSQL service instance to the backend app; the backend
+will discover the connection from `VCAP_SERVICES` and create the
+`integration_payloads` table/indexes automatically on first use.
+
+For local testing or explicit configuration, set:
+
+```bash
+INTEGRATION_PULSE_PAYLOAD_DATABASE_URL=postgresql://user:password@host:5432/dbname?sslmode=require
+```
+
+Payloads are retained for seven days. Payloads over 100 KB are kept in the
+database but are download-only in the UI.
+
+---
+
 ## Embedding in SuccessFactors
 
 1. Deploy the built frontend (`npm run build` → `dist/`) and the FastAPI proxy
