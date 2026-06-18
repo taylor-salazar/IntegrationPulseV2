@@ -492,6 +492,8 @@ sap.ui.define([
 							id: o.id,
 							name: o.name,
 							packageName: o.packageName,
+							sender: o.sender,
+							receiver: o.receiver,
 							endpoint: "",
 							status: o.status,
 							messages24h: 0,

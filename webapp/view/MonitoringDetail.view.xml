@@ -9,8 +9,11 @@
 		<f:title>
 			<f:DynamicPageTitle>
 				<f:heading>
-					<Title text="{monitoringItem>/name}"/>
+					<Title text="{i18n>runHistoryTitle}"/>
 				</f:heading>
+				<f:expandedContent>
+					<Text text="{monitoringItem>/name}"/>
+				</f:expandedContent>
 				<f:actions>
 					<ObjectStatus
 						text="{monitoringItem>/status}"
@@ -27,22 +30,29 @@
 		<f:header>
 			<f:DynamicPageHeader pinnable="true">
 				<f:content>
-					<HBox wrap="Wrap">
-						<VBox class="sapUiMediumMarginEnd">
+					<HBox wrap="Wrap" class="ipRunHistoryHeader">
+						<VBox class="ipRunHistoryMetric">
+							<Label text="{i18n>latestRunTitle}"/>
+							<ObjectStatus
+								text="{monDetailView>/summary/latestStatus}"
+								state="{path: 'monDetailView>/summary/latestStatus', formatter: '.formatter.logState'}"/>
+							<Text text="{path: 'monDetailView>/summary/latestTime', formatter: '.formatter.dateTime'}" class="ipMuted"/>
+						</VBox>
+						<VBox class="ipRunHistoryMetric">
+							<Label text="{i18n>monitoringPassed}"/>
+							<Text text="{monDetailView>/summary/passed}" class="ipMonitorMetricValue ipMonitorMetricGood"/>
+						</VBox>
+						<VBox class="ipRunHistoryMetric">
+							<Label text="{i18n>monitoringFailed}"/>
+							<Text text="{monDetailView>/summary/failed}" class="ipMonitorMetricValue ipMonitorMetricError"/>
+						</VBox>
+						<VBox class="ipRunHistoryMetric">
+							<Label text="{i18n>monitoringWarned}"/>
+							<Text text="{monDetailView>/summary/warnings}" class="ipMonitorMetricValue ipMonitorMetricWarning"/>
+						</VBox>
+						<VBox class="ipRunHistoryMetric">
 							<Label text="{i18n>colEndpoint}"/>
 							<Text text="{monitoringItem>/endpoint}"/>
-						</VBox>
-						<VBox class="sapUiMediumMarginEnd">
-							<Label text="{i18n>colMessages}"/>
-							<Text text="{monitoringItem>/messages24h}"/>
-						</VBox>
-						<VBox class="sapUiMediumMarginEnd">
-							<Label text="{i18n>colErrors}"/>
-							<ObjectNumber number="{monitoringItem>/errors24h}" state="{path: 'monitoringItem>/errors24h', formatter: '.formatter.errorState'}"/>
-						</VBox>
-						<VBox>
-							<Label text="{i18n>colLastDeployed}"/>
-							<Text text="{path: 'monitoringItem>/lastDeployed', formatter: '.formatter.dateTime'}"/>
 						</VBox>
 					</HBox>
 				</f:content>
@@ -51,7 +61,8 @@
 
 		<f:content>
 			<VBox class="sapUiContentPadding">
-				<Title text="{i18n>messageLogsTitle}" level="H3" class="sapUiSmallMarginBottom"/>
+				<Title text="{i18n>messageLogsTitle}" level="H3"/>
+				<Text text="{i18n>runHistorySubtitle}" class="ipSubtitle sapUiSmallMarginBottom"/>
 
 				<Table
 					id="logsTable"

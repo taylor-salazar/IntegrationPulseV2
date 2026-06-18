@@ -58,6 +58,8 @@ class MonitoringItem(BaseModel):
     packageName: str = ""
     endpoint: str = ""
     status: str = "STOPPED"
+    sender: str = ""
+    receiver: str = ""
     messages24h: int = 0
     errors24h: int = 0
     lastDeployed: Optional[str] = None

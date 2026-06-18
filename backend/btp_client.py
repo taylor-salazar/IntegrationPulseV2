@@ -272,6 +272,8 @@ async def list_monitoring() -> List[MonitoringItem]:
             name=r.get("Name", r.get("Id", "")),
             packageName=r.get("PackageId", ""),
             status=r.get("Status", "STOPPED"),
+            sender=r.get("Sender", ""),
+            receiver=r.get("Receiver", ""),
             lastDeployed=r.get("DeployedOn"),
         )
         for r in results
