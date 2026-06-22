@@ -1,0 +1,8 @@
+﻿flowchart LR
+    Flow[Integration Suite Flow] -->|POST run summary| API[Integration Pulse Payload API]
+    API --> DB[(PostgreSQL integration_payloads)]
+    DB --> Summary[Payload Summary Metadata]
+    Summary --> MPL[Monitoring Row matched by messageId]
+    MPL --> Preview[Preview if <= 100 KB]
+    MPL --> Download[Download if downloadOnly]
+    DB --> Retention[Expires after 7 days]

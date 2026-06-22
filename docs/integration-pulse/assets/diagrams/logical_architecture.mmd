@@ -1,0 +1,11 @@
+﻿flowchart LR
+    User[HR and Integration Users] --> UI[Integration Pulse SAPUI5 Frontend]
+    UI --> Dest[BTP Destination Route /api/v1]
+    UI --> PayloadAPI[Payload API /payload-api/v1]
+    UI --> Proxy[Optional FastAPI Proxy]
+    Dest --> IS[SAP BTP Integration Suite OData API]
+    Proxy --> IS
+    PayloadAPI --> PG[(PostgreSQL Payload Storage)]
+    IS --> Runtime[Runtime Artifacts]
+    IS --> Design[Design-Time Artifacts and Configurations]
+    IS --> MPL[Message Processing Logs]
