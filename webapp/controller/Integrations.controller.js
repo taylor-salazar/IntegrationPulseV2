@@ -39,15 +39,62 @@ sap.ui.define([
 
 		_loadData: function () {
 			var oData = this.getModel("integrations");
+			this._iMetadataLoadToken = (this._iMetadataLoadToken || 0) + 1;
+			var iLoadToken = this._iMetadataLoadToken;
 			this.getView().setBusy(true);
 			BackendClient.getIntegrations().then(function (aItems) {
 				this._aAllItems = this._prepareRuntimeArtifacts(this._filterRuntimeArtifacts(aItems));
 				oData.setProperty("/items", this._aAllItems);
 				this._applyGrouping();
 				this.getView().setBusy(false);
+				this._enrichMetadataInBackground(iLoadToken);
 			}.bind(this)).catch(function (oErr) {
 				this.getView().setBusy(false);
 				MessageToast.show("Failed to load integrations: " + oErr.message);
+			}.bind(this));
+		},
+
+		_enrichMetadataInBackground: function (iLoadToken) {
+			var aQueue = (this._aAllItems || []).slice();
+			var iNext = 0;
+			var iCompleted = 0;
+			var iConcurrency = 6;
+			var fnRunNext = function () {
+				if (this._iMetadataLoadToken !== iLoadToken || iNext >= aQueue.length) {
+					return Promise.resolve();
+				}
+				var oItem = aQueue[iNext];
+				iNext += 1;
+				return BackendClient.enrichIntegrationMetadata(oItem).then(function (oEnriched) {
+					this._mergeEnrichedIntegration(oEnriched);
+					iCompleted += 1;
+					if (iCompleted % 8 === 0 || iCompleted === aQueue.length) {
+						this._aAllItems = this._prepareRuntimeArtifacts(this._aAllItems);
+						this._applyGrouping();
+					}
+				}.bind(this)).catch(function () {
+					iCompleted += 1;
+				}).then(fnRunNext);
+			}.bind(this);
+
+			Promise.all(Array(Math.min(iConcurrency, aQueue.length)).fill(0).map(fnRunNext)).then(function () {
+				if (this._iMetadataLoadToken === iLoadToken) {
+					this._aAllItems = this._prepareRuntimeArtifacts(this._aAllItems);
+					this._applyGrouping();
+				}
+			}.bind(this));
+		},
+
+		_mergeEnrichedIntegration: function (oEnriched) {
+			if (!oEnriched || !oEnriched.id) {
+				return;
+			}
+			this._aAllItems.some(function (oItem, iIndex) {
+				if (oItem.id === oEnriched.id) {
+					this._aAllItems[iIndex] = Object.assign({}, oItem, oEnriched);
+					return true;
+				}
+				return false;
 			}.bind(this));
 		},
 

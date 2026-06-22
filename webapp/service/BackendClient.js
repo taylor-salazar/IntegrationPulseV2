@@ -27,6 +27,7 @@ sap.ui.define([
 	var USE_MOCK = resolveUseMock();
 	var LIVE_MODE = resolveLiveMode();
 	var MOCK_ROOT = sap.ui.require.toUrl("integrationpulse/localService/mockdata");
+	var mDesignTimeMetadataCache = {};
 
 	function delay(ms) {
 		return new Promise(function (resolve) {
@@ -243,6 +244,10 @@ sap.ui.define([
 	}
 
 	function withDesignTimeMetadata(oRuntimeItem) {
+		var sCacheKey = [oRuntimeItem.id, oRuntimeItem.version, oRuntimeItem.designTimeId].join("|");
+		if (mDesignTimeMetadataCache[sCacheKey]) {
+			return Promise.resolve(Object.assign({}, oRuntimeItem, mDesignTimeMetadataCache[sCacheKey]));
+		}
 		return tryGetDesignTimeMetadata(
 			getDesignTimeIdCandidates(oRuntimeItem.id, oRuntimeItem),
 			getDesignTimeVersionCandidates(oRuntimeItem),
@@ -255,27 +260,28 @@ sap.ui.define([
 					receiver: ""
 				});
 			}
-			return Object.assign({}, oRuntimeItem, {
+			mDesignTimeMetadataCache[sCacheKey] = {
 				designTimeId: oDesignTimeItem.id || oRuntimeItem.designTimeId,
 				designTimeVersion: oDesignTimeItem.designTimeVersion || oRuntimeItem.designTimeVersion,
 				sender: oDesignTimeItem.sender || "",
 				receiver: oDesignTimeItem.receiver || "",
 				packageName: oRuntimeItem.packageName || oDesignTimeItem.packageName,
 				name: oRuntimeItem.name || oDesignTimeItem.name || oRuntimeItem.id
-			});
+			};
+			return Object.assign({}, oRuntimeItem, mDesignTimeMetadataCache[sCacheKey]);
 		});
 	}
 
 	function getDestinationIntegrations() {
 		return getJSON(getDestinationUrl("/IntegrationRuntimeArtifacts")).then(function (d) {
-			var aRuntimeItems = runtimeArtifactsOnly(odataResults(d).map(mapIntegration));
-			return Promise.all(aRuntimeItems.map(withDesignTimeMetadata));
+			return runtimeArtifactsOnly(odataResults(d).map(mapIntegration));
 		});
 	}
 
 	function getDestinationIntegration(sId) {
 		return getDestinationIntegrations().then(function (aItems) {
-			return aItems.filter(function (o) { return o.id === sId; })[0] || null;
+			var oItem = aItems.filter(function (o) { return o.id === sId; })[0] || null;
+			return oItem ? withDesignTimeMetadata(oItem) : null;
 		});
 	}
 
@@ -376,6 +382,13 @@ sap.ui.define([
 
 		getLiveMode: function () {
 			return LIVE_MODE;
+		},
+
+		enrichIntegrationMetadata: function (oIntegration) {
+			if (USE_MOCK || LIVE_MODE !== "destination") {
+				return Promise.resolve(oIntegration);
+			}
+			return withDesignTimeMetadata(oIntegration);
 		},
 
 		/**

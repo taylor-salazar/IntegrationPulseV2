@@ -17,7 +17,6 @@ Reference endpoints (Cloud Integration OData API v1):
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 import re
@@ -70,29 +69,6 @@ def _odata_results(data: dict) -> List[dict]:
     return data.get("d", {}).get("results", [])
 
 
-def _map_design_time_metadata(raw: dict) -> dict:
-    return {
-        "id": raw.get("Id", ""),
-        "name": raw.get("Name", ""),
-        "packageName": raw.get("PackageId", ""),
-        "version": raw.get("Version", ""),
-        "sender": raw.get("Sender", "") or "",
-        "receiver": raw.get("Receiver", "") or "",
-    }
-
-
-async def _design_time_metadata_for_artifact(integration_id: str) -> dict:
-    path = (
-        f"/IntegrationDesigntimeArtifacts(Id={_odata_literal(integration_id)},"
-        f"Version={_odata_literal('Active')})"
-    )
-    try:
-        data = await _is_get(path)
-    except httpx.HTTPStatusError:
-        return {}
-    return _map_design_time_metadata(data.get("d", data))
-
-
 # --------------------------------------------------------------------------- #
 # Integrations
 # --------------------------------------------------------------------------- #
@@ -103,9 +79,6 @@ async def list_integrations() -> List[Integration]:
     # >>> PLACEHOLDER: GET /IntegrationRuntimeArtifacts <<<
     data = await _is_get("/IntegrationRuntimeArtifacts")
     results = _odata_results(data)
-    design_time_items = await asyncio.gather(
-        *[_design_time_metadata_for_artifact(r.get("Id", "")) for r in results]
-    )
     return [
         Integration(
             id=r.get("Id", ""),
@@ -117,10 +90,10 @@ async def list_integrations() -> List[Integration]:
             parameterCount=0,  # filled by a follow-up Configurations call if needed
             lastDeployed=r.get("DeployedOn"),
             isRuntimeArtifact=True,
-            sender=design_time_items[i].get("sender", ""),
-            receiver=design_time_items[i].get("receiver", ""),
+            sender=r.get("Sender", "") or "",
+            receiver=r.get("Receiver", "") or "",
         )
-        for i, r in enumerate(results)
+        for r in results
     ]
 
 
