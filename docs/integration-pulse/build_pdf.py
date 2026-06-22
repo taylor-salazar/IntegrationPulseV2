@@ -2,7 +2,18 @@
 from datetime import date
 import re
 
-from reportlab.lib import colors
+try:
+    from reportlab.lib import colors
+except ModuleNotFoundError as exc:
+    if exc.name == 'reportlab':
+        raise SystemExit(
+            'Missing PDF dependency: reportlab\n'
+            'Install documentation dependencies from the repository root with:\n'
+            '  python -m pip install -r docs\\integration-pulse\\requirements.txt\n'
+            'Then rerun:\n'
+            '  python docs\\integration-pulse\\build_pdf.py'
+        ) from exc
+    raise
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle

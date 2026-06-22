@@ -16,8 +16,14 @@ This package contains the editable source and generated PDF for the Integration 
 From the repository root:
 
 ```powershell
+python -m pip install -r docs\integration-pulse\requirements.txt
+```
+
+```powershell
 python docs\integration-pulse\build_pdf.py
 ```
+
+If `python` points to a Python install without the required PDF libraries, the build will fail with a missing module error. Running the install command above fixes that for the active Python environment.
 
 The script reads the Markdown files in `source/` and writes:
 
