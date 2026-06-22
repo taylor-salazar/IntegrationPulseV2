@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import datetime, timedelta, timezone
-from typing import List
+from typing import List, Optional
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
 
 from models import PayloadCreateRequest, PayloadDetail, PayloadSummary
@@ -31,8 +32,52 @@ def _summary(item: dict) -> PayloadSummary:
 
 
 @router.post("", response_model=PayloadSummary)
-async def create_payload(body: PayloadCreateRequest):
-    """Receive a text payload from an Integration Suite HTTP receiver step."""
+async def create_payload(
+    request: Request,
+    integrationId: Optional[str] = Query(None),
+    messageId: Optional[str] = Query(None),
+    fileName: Optional[str] = Query(None),
+):
+    """Receive a text payload from an Integration Suite HTTP receiver step.
+
+    Supports either the original JSON wrapper contract or a raw text body
+    (JSON, CSV, XML, plain text) with metadata supplied by query parameters
+    or HTTP headers.
+    """
+    raw_body = await request.body()
+    headers = request.headers
+    content_type = headers.get("content-type", "text/plain").split(";")[0] or "text/plain"
+    raw_text = raw_body.decode("utf-8", errors="replace")
+    wrapper = None
+    if "json" in content_type:
+        try:
+            candidate = json.loads(raw_text or "{}")
+            if isinstance(candidate, dict) and "payload" in candidate:
+                wrapper = PayloadCreateRequest(**candidate)
+        except Exception:
+            wrapper = None
+
+    if wrapper:
+        body = wrapper
+    else:
+        resolved_integration_id = (
+            integrationId
+            or headers.get("x-integration-id")
+            or headers.get("x-integrationid")
+        )
+        if not resolved_integration_id:
+            raise HTTPException(
+                status_code=400,
+                detail="integrationId is required as a query parameter, header, or JSON wrapper field",
+            )
+        body = PayloadCreateRequest(
+            integrationId=resolved_integration_id,
+            messageId=messageId or headers.get("x-message-id") or headers.get("x-messageid"),
+            fileName=fileName or headers.get("x-file-name") or headers.get("x-filename") or "payload.txt",
+            contentType=content_type,
+            payload=raw_text,
+        )
+
     created_at = _now()
     payload_bytes = body.payload.encode("utf-8")
     size_bytes = len(payload_bytes)

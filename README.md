@@ -116,6 +116,18 @@ INTEGRATION_PULSE_PAYLOAD_DATABASE_URL=postgresql://user:password@host:5432/dbna
 Payloads are retained for seven days. Payloads over 100 KB are kept in the
 database but are download-only in the UI.
 
+Integration Suite can send payloads to:
+
+```text
+POST /payload-api/v1/payloads?integrationId=<artifact-id>&messageId=<message-id>
+Content-Type: application/json | text/csv | application/xml | text/plain
+```
+
+The request body can be raw JSON, CSV, XML, or plain text. The same metadata can
+also be sent as `X-Integration-Id`, `X-Message-Id`, and `X-File-Name` headers.
+The monitoring Results column matches captured payloads to message processing
+logs by `messageId`.
+
 ---
 
 ## Embedding in SuccessFactors

@@ -1,4 +1,19 @@
 {
+	"SF_EC_to_Vendor_Employee_File": [
+		{
+			"id": "mock-monitor-json-001",
+			"integrationId": "SF_EC_to_Vendor_Employee_File",
+			"messageId": "AGm9x1k2-7f",
+			"fileName": "employee-file-result.json",
+			"contentType": "application/json",
+			"sizeBytes": 128,
+			"createdAt": "2026-06-12T05:00:12Z",
+			"expiresAt": "2026-06-19T05:00:12Z",
+			"previewAvailable": true,
+			"downloadOnly": false,
+			"payload": "{\"status\":\"COMPLETED\",\"recordsSent\":42,\"target\":\"Vendor SFTP\"}"
+		}
+	],
 	"Execution_Manager": [
 		{
 			"id": "mock-json-001",

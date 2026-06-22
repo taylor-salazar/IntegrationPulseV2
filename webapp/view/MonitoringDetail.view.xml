@@ -73,6 +73,7 @@
 						<Column hAlign="Center"><Text text="{i18n>colLogStatus}"/></Column>
 						<Column><Text text="{i18n>colName}"/></Column>
 						<Column><Text text="{i18n>colLogId}"/></Column>
+						<Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colResults}"/></Column>
 						<Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colLogSender}"/></Column>
 						<Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colLogTime}"/></Column>
 						<Column hAlign="End" minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colLogDuration}"/></Column>
@@ -85,6 +86,7 @@
 									state="{path: 'logs>status', formatter: '.formatter.logState'}"/>
 								<ObjectIdentifier title="{logs>integrationName}" text="{logs>integrationId}"/>
 								<ObjectIdentifier title="{logs>messageId}"/>
+								<Link text="{logs>resultText}" visible="{logs>hasPayload}" press=".onOpenPayloadResult"/>
 								<Text text="{logs>sender}"/>
 								<Text text="{path: 'logs>logEnd', formatter: '.formatter.dateTime'}"/>
 								<Text text="{path: 'logs>durationMs', formatter: '.formatter.duration'}"/>
