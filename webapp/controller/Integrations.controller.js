@@ -43,11 +43,29 @@ sap.ui.define([
 			var iLoadToken = this._iMetadataLoadToken;
 			this.getView().setBusy(true);
 			BackendClient.getIntegrations().then(function (aItems) {
-				this._aAllItems = this._prepareRuntimeArtifacts(this._filterRuntimeArtifacts(aItems));
-				oData.setProperty("/items", this._aAllItems);
-				this._applyGrouping();
-				this.getView().setBusy(false);
-				this._enrichMetadataInBackground(iLoadToken);
+				var aRuntimeItems = this._filterRuntimeArtifacts(aItems).map(function (oItem) {
+					return BackendClient.applyCachedIntegrationMetadata(oItem);
+				});
+				var bCacheReady = aRuntimeItems.every(function (oItem) {
+					return BackendClient.hasCachedIntegrationMetadata(oItem);
+				});
+				if (bCacheReady) {
+					this._aAllItems = this._prepareRuntimeArtifacts(aRuntimeItems);
+					oData.setProperty("/items", this._aAllItems);
+					this._applyGrouping();
+					this.getView().setBusy(false);
+					this._enrichMetadataInBackground(iLoadToken);
+					return null;
+				}
+				return this._enrichMetadataQueue(aRuntimeItems, iLoadToken, false).then(function (aEnrichedItems) {
+					if (this._iMetadataLoadToken !== iLoadToken) {
+						return;
+					}
+					this._aAllItems = this._prepareRuntimeArtifacts(aEnrichedItems);
+					oData.setProperty("/items", this._aAllItems);
+					this._applyGrouping();
+					this.getView().setBusy(false);
+				}.bind(this));
 			}.bind(this)).catch(function (oErr) {
 				this.getView().setBusy(false);
 				MessageToast.show("Failed to load integrations: " + oErr.message);
@@ -55,7 +73,12 @@ sap.ui.define([
 		},
 
 		_enrichMetadataInBackground: function (iLoadToken) {
-			var aQueue = (this._aAllItems || []).slice();
+			this._enrichMetadataQueue((this._aAllItems || []).slice(), iLoadToken, true);
+		},
+
+		_enrichMetadataQueue: function (aItems, iLoadToken, bApplyChunks) {
+			var aQueue = (aItems || []).slice();
+			var aResults = aQueue.slice();
 			var iNext = 0;
 			var iCompleted = 0;
 			var iConcurrency = 6;
@@ -64,11 +87,15 @@ sap.ui.define([
 					return Promise.resolve();
 				}
 				var oItem = aQueue[iNext];
+				var iItemIndex = iNext;
 				iNext += 1;
 				return BackendClient.enrichIntegrationMetadata(oItem).then(function (oEnriched) {
-					this._mergeEnrichedIntegration(oEnriched);
+					aResults[iItemIndex] = oEnriched || oItem;
+					if (bApplyChunks) {
+						this._mergeEnrichedIntegration(oEnriched);
+					}
 					iCompleted += 1;
-					if (iCompleted % 8 === 0 || iCompleted === aQueue.length) {
+					if (bApplyChunks && (iCompleted % 8 === 0 || iCompleted === aQueue.length)) {
 						this._aAllItems = this._prepareRuntimeArtifacts(this._aAllItems);
 						this._applyGrouping();
 					}
@@ -77,10 +104,13 @@ sap.ui.define([
 				}).then(fnRunNext);
 			}.bind(this);
 
-			Promise.all(Array(Math.min(iConcurrency, aQueue.length)).fill(0).map(fnRunNext)).then(function () {
+			return Promise.all(Array(Math.min(iConcurrency, aQueue.length)).fill(0).map(fnRunNext)).then(function () {
 				if (this._iMetadataLoadToken === iLoadToken) {
-					this._aAllItems = this._prepareRuntimeArtifacts(this._aAllItems);
-					this._applyGrouping();
+					if (bApplyChunks) {
+						this._aAllItems = this._prepareRuntimeArtifacts(this._aAllItems);
+						this._applyGrouping();
+					}
+					return aResults;
 				}
 			}.bind(this));
 		},

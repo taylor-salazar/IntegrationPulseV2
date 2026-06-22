@@ -27,7 +27,26 @@ sap.ui.define([
 	var USE_MOCK = resolveUseMock();
 	var LIVE_MODE = resolveLiveMode();
 	var MOCK_ROOT = sap.ui.require.toUrl("integrationpulse/localService/mockdata");
+	var DESIGN_TIME_CACHE_KEY = "integrationPulse.designTimeMetadata.v1";
 	var mDesignTimeMetadataCache = {};
+
+	function loadDesignTimeMetadataCache() {
+		try {
+			mDesignTimeMetadataCache = JSON.parse(window.localStorage.getItem(DESIGN_TIME_CACHE_KEY) || "{}") || {};
+		} catch (e) {
+			mDesignTimeMetadataCache = {};
+		}
+	}
+
+	function persistDesignTimeMetadataCache() {
+		try {
+			window.localStorage.setItem(DESIGN_TIME_CACHE_KEY, JSON.stringify(mDesignTimeMetadataCache));
+		} catch (e) {
+			Log.warning("Unable to persist design-time metadata cache", e && e.message);
+		}
+	}
+
+	loadDesignTimeMetadataCache();
 
 	function delay(ms) {
 		return new Promise(function (resolve) {
@@ -231,6 +250,23 @@ sap.ui.define([
 		]);
 	}
 
+	function getDesignTimeCacheKey(oIntegration) {
+		return [
+			oIntegration && oIntegration.id,
+			oIntegration && oIntegration.version,
+			oIntegration && oIntegration.designTimeId
+		].join("|");
+	}
+
+	function applyCachedDesignTimeMetadata(oIntegration) {
+		var oCached = mDesignTimeMetadataCache[getDesignTimeCacheKey(oIntegration)];
+		return oCached ? Object.assign({}, oIntegration, oCached) : oIntegration;
+	}
+
+	function hasCachedDesignTimeMetadata(oIntegration) {
+		return !!mDesignTimeMetadataCache[getDesignTimeCacheKey(oIntegration)];
+	}
+
 	function tryGetDesignTimeMetadata(aIds, aVersions, iIdIndex, iVersionIndex) {
 		if (iIdIndex >= aIds.length) {
 			return Promise.resolve(null);
@@ -244,7 +280,7 @@ sap.ui.define([
 	}
 
 	function withDesignTimeMetadata(oRuntimeItem) {
-		var sCacheKey = [oRuntimeItem.id, oRuntimeItem.version, oRuntimeItem.designTimeId].join("|");
+		var sCacheKey = getDesignTimeCacheKey(oRuntimeItem);
 		if (mDesignTimeMetadataCache[sCacheKey]) {
 			return Promise.resolve(Object.assign({}, oRuntimeItem, mDesignTimeMetadataCache[sCacheKey]));
 		}
@@ -268,6 +304,7 @@ sap.ui.define([
 				packageName: oRuntimeItem.packageName || oDesignTimeItem.packageName,
 				name: oRuntimeItem.name || oDesignTimeItem.name || oRuntimeItem.id
 			};
+			persistDesignTimeMetadataCache();
 			return Object.assign({}, oRuntimeItem, mDesignTimeMetadataCache[sCacheKey]);
 		});
 	}
@@ -389,6 +426,14 @@ sap.ui.define([
 				return Promise.resolve(oIntegration);
 			}
 			return withDesignTimeMetadata(oIntegration);
+		},
+
+		applyCachedIntegrationMetadata: function (oIntegration) {
+			return applyCachedDesignTimeMetadata(oIntegration);
+		},
+
+		hasCachedIntegrationMetadata: function (oIntegration) {
+			return USE_MOCK || LIVE_MODE !== "destination" || hasCachedDesignTimeMetadata(oIntegration);
 		},
 
 		/**
