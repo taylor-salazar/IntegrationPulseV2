@@ -18,6 +18,15 @@ sap.ui.define([], function () {
 		ESCALATED: "Warning"
 	};
 
+	function parseDateValue(sValue) {
+		var sText = String(sValue || "");
+		var aSapDate = /\/Date\((-?\d+)(?:[+-]\d+)?\)\//.exec(sText);
+		if (aSapDate) {
+			return new Date(Number(aSapDate[1]));
+		}
+		return new Date(sValue);
+	}
+
 	return {
 
 		/**
@@ -68,7 +77,7 @@ sap.ui.define([], function () {
 			if (!sValue) {
 				return "";
 			}
-			var oDate = new Date(sValue);
+			var oDate = parseDateValue(sValue);
 			if (isNaN(oDate.getTime())) {
 				return sValue;
 			}

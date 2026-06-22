@@ -37,6 +37,12 @@ sap.ui.define([
 		}).join(" ");
 	}
 
+	function visibleMessageLogs(aLogs) {
+		return (aLogs || []).filter(function (oLog) {
+			return String(oLog && oLog.status || "").toUpperCase() !== "DISCARDED";
+		});
+	}
+
 	return BaseController.extend("integrationpulse.controller.MonitoringDetail", {
 
 		onInit: function () {
@@ -81,8 +87,9 @@ sap.ui.define([
 				BackendClient.getMessageLogs(this._sId)
 			]).then(function (aRes) {
 				that.getModel("monitoringItem").setData(aRes[0] || {});
-				that.getModel("logs").setProperty("/items", aRes[1] || []);
-				that._summarizeLogs(aRes[1] || []);
+				var aLogs = visibleMessageLogs(aRes[1] || []);
+				that.getModel("logs").setProperty("/items", aLogs);
+				that._summarizeLogs(aLogs);
 				that.getModel("monDetailView").setProperty("/busy", false);
 			}).catch(function (oErr) {
 				that.getModel("monDetailView").setProperty("/busy", false);
@@ -127,7 +134,7 @@ sap.ui.define([
 						});
 					});
 				})).then(function (aLogGroups) {
-					var aLogs = Array.prototype.concat.apply([], aLogGroups);
+					var aLogs = visibleMessageLogs(Array.prototype.concat.apply([], aLogGroups));
 					that.getModel("monitoringItem").setData({
 						id: that._sMode + ":" + that._sSystem,
 						name: that._sSystem,

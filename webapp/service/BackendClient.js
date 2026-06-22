@@ -191,6 +191,12 @@ sap.ui.define([
 		};
 	}
 
+	function visibleMessageLogs(aLogs) {
+		return (aLogs || []).filter(function (oLog) {
+			return String(oLog && oLog.status || "").toUpperCase() !== "DISCARDED";
+		});
+	}
+
 	function mapPayload(oRaw) {
 		return {
 			id: oRaw.id || "",
@@ -621,7 +627,7 @@ sap.ui.define([
 			if (USE_MOCK) {
 				return getJSON(MOCK_ROOT + "/messageLogs.json").then(function (d) {
 					return delay(250).then(function () {
-						return d[sId] || [];
+						return visibleMessageLogs(d[sId] || []);
 					});
 				});
 			}
@@ -630,10 +636,11 @@ sap.ui.define([
 				var sPath = "/MessageProcessingLogs?$filter=" + sFilter +
 					"&$orderby=LogEnd%20desc&$top=50&$format=json";
 				return getJSON(getDestinationUrl(sPath)).then(function (d) {
-					return odataResults(d).map(mapMessageLog);
+					return visibleMessageLogs(odataResults(d).map(mapMessageLog));
 				});
 			}
-			return getJSON(config.backendBaseUrl + "/api/monitoring/" + encodeURIComponent(sId) + "/logs");
+			return getJSON(config.backendBaseUrl + "/api/monitoring/" + encodeURIComponent(sId) + "/logs")
+				.then(visibleMessageLogs);
 		},
 
 		getPayloads: function (sIntegrationId) {
