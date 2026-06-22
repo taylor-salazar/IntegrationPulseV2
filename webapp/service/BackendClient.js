@@ -309,6 +309,29 @@ sap.ui.define([
 		});
 	}
 
+	function enrichDesignTimeMetadataQueue(aItems) {
+		var aQueue = (aItems || []).slice();
+		var aResults = aQueue.slice();
+		var iNext = 0;
+		var iConcurrency = 6;
+		var fnRunNext = function () {
+			if (iNext >= aQueue.length) {
+				return Promise.resolve();
+			}
+			var oItem = aQueue[iNext];
+			var iItemIndex = iNext;
+			iNext += 1;
+			return withDesignTimeMetadata(oItem).then(function (oEnriched) {
+				aResults[iItemIndex] = oEnriched || oItem;
+			}).catch(function () {
+				aResults[iItemIndex] = oItem;
+			}).then(fnRunNext);
+		};
+		return Promise.all(Array(Math.min(iConcurrency, aQueue.length)).fill(0).map(fnRunNext)).then(function () {
+			return aResults;
+		});
+	}
+
 	function getDestinationIntegrations() {
 		return getJSON(getDestinationUrl("/IntegrationRuntimeArtifacts")).then(function (d) {
 			return runtimeArtifactsOnly(odataResults(d).map(mapIntegration));
@@ -452,6 +475,16 @@ sap.ui.define([
 			}
 			return getJSON(config.backendBaseUrl + "/api/integrations").then(function (aItems) {
 				return runtimeArtifactsOnly((aItems || []).map(mapIntegration));
+			});
+		},
+
+		getIntegrationsWithMetadata: function () {
+			return this.getIntegrations().then(function (aItems) {
+				var aRuntimeItems = (aItems || []).map(applyCachedDesignTimeMetadata);
+				if (USE_MOCK || LIVE_MODE !== "destination" || aRuntimeItems.every(hasCachedDesignTimeMetadata)) {
+					return aRuntimeItems;
+				}
+				return enrichDesignTimeMetadataQueue(aRuntimeItems);
 			});
 		},
 

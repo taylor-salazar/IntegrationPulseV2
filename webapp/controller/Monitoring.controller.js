@@ -11,19 +11,31 @@ sap.ui.define([
 	function normalizeSystemName(sValue) {
 		return String(sValue || "")
 			.replace(/[_-]+/g, " ")
+			.replace(/([a-z0-9])([A-Z])/g, "$1 $2")
 			.replace(/\s+/g, " ")
 			.trim();
 	}
 
-	function systemFromItem(oItem, sMode) {
-		var sSystem = sMode === "source" ?
-			(oItem.sender || oItem.sourceSystem || oItem.source || "") :
-			(oItem.receiver || oItem.targetSystem || oItem.target || "");
-		var aParts = String(oItem.name || oItem.id || "").split(/\s*(?:->|to)\s*/i);
-		if (!sSystem && aParts.length > 1) {
-			sSystem = sMode === "source" ? aParts[0] : aParts[aParts.length - 1];
+	function formatSystemName(sValue, sUnknown) {
+		var sName = normalizeSystemName(sValue);
+		var mAcronyms = {
+			API: true,
+			BTP: true,
+			EC: true,
+			HCM: true,
+			HR: true,
+			IDP: true,
+			SAP: true,
+			SFTP: true,
+			UKG: true
+		};
+		if (!sName) {
+			return sUnknown;
 		}
-		return normalizeSystemName(sSystem || "Unknown System");
+		return sName.split(" ").map(function (sPart) {
+			var sUpper = sPart.toUpperCase();
+			return mAcronyms[sUpper] ? sUpper : sPart.charAt(0).toUpperCase() + sPart.slice(1);
+		}).join(" ");
 	}
 
 	function healthFromStatus(oItem, oLatestLog) {
@@ -82,12 +94,30 @@ sap.ui.define([
 		_loadData: function () {
 			var that = this;
 			this.getView().setBusy(true);
-			BackendClient.getMonitoring().then(function (aItems) {
-				return (aItems || []).map(function (oItem) {
+			Promise.all([
+				BackendClient.getIntegrationsWithMetadata(),
+				BackendClient.getMonitoring()
+			]).then(function (aResults) {
+				var aIntegrations = aResults[0] || [];
+				var aRuntimeItems = aResults[1] || [];
+				var mRuntimeById = {};
+				var sUnknown = that.getText("unknownSystem");
+				aRuntimeItems.forEach(function (oItem) {
+					if (oItem && oItem.id) {
+						mRuntimeById[oItem.id] = oItem;
+					}
+				});
+				return aIntegrations.map(function (oIntegration) {
+					var oRuntime = mRuntimeById[oIntegration.id] || {};
+					var oItem = Object.assign({}, oRuntime, oIntegration, {
+						messages24h: Number(oRuntime.messages24h) || 0,
+						errors24h: Number(oRuntime.errors24h) || 0,
+						endpoint: oRuntime.endpoint || ""
+					});
 					var sHealth = healthFromStatus(oItem, null);
 					return Object.assign({}, oItem, {
-						sourceSystem: systemFromItem(oItem, "source"),
-						targetSystem: systemFromItem(oItem, "target"),
+						sourceSystem: formatSystemName(oItem.sender, sUnknown),
+						targetSystem: formatSystemName(oItem.receiver, sUnknown),
 						health: sHealth,
 						ran24h: ranInLast24Hours(oItem)
 					});
@@ -128,6 +158,7 @@ sap.ui.define([
 				if (!mGroups[sKey]) {
 					mGroups[sKey] = {
 						id: encodeURIComponent(sKey),
+						mode: sMode,
 						name: sSystem || "Unknown System",
 						subtitle: bRecentOnly ? this.getText("monitoringTileRecentSubtitle") : this.getText("monitoringTileDeployedSubtitle"),
 						total: 0,
@@ -193,6 +224,17 @@ sap.ui.define([
 			this.getModel("view").setProperty("/groupMode", "target");
 			this.getModel("view").setProperty("/groupLabel", this.getText("targetSystemCategory"));
 			this._applyViewData();
+		},
+
+		onOpenSystemLogs: function (oEvent) {
+			var oCtx = oEvent.getSource().getBindingContext("monitoring");
+			if (!oCtx) {
+				return;
+			}
+			this.navTo("monitoringSystemDetail", {
+				mode: oCtx.getProperty("mode"),
+				system: encodeURIComponent(oCtx.getProperty("name"))
+			});
 		},
 
 		onRefresh: function () {

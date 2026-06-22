@@ -102,6 +102,11 @@
 					"target": "monitoring"
 				},
 				{
+					"name": "monitoringSystemDetail",
+					"pattern": "monitoring/system/{mode}/{system}",
+					"target": "monitoringDetail"
+				},
+				{
 					"name": "monitoringDetail",
 					"pattern": "monitoring/{id}",
 					"target": "monitoringDetail"

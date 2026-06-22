@@ -71,6 +71,7 @@
 					items="{path: 'logs>/items', sorter: { path: 'logEnd', descending: true }}">
 					<columns>
 						<Column hAlign="Center"><Text text="{i18n>colLogStatus}"/></Column>
+						<Column><Text text="{i18n>colName}"/></Column>
 						<Column><Text text="{i18n>colLogId}"/></Column>
 						<Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colLogSender}"/></Column>
 						<Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colLogTime}"/></Column>
@@ -82,6 +83,7 @@
 								<ObjectStatus
 									text="{logs>status}"
 									state="{path: 'logs>status', formatter: '.formatter.logState'}"/>
+								<ObjectIdentifier title="{logs>integrationName}" text="{logs>integrationId}"/>
 								<ObjectIdentifier title="{logs>messageId}"/>
 								<Text text="{logs>sender}"/>
 								<Text text="{path: 'logs>logEnd', formatter: '.formatter.dateTime'}"/>

@@ -63,7 +63,7 @@
 						class="ipMonitorVendorGrid"
 						items="{monitoring>/recentVendors}">
 						<items>
-							<CustomTile class="ipMonitorVendorTile">
+							<CustomTile class="ipMonitorVendorTile" press=".onOpenSystemLogs">
 								<VBox class="ipMonitorVendorTileInner">
 									<VBox class="ipMonitorVendorTitleBlock">
 										<Text text="{monitoring>name}" class="ipMonitorVendorName"/>
@@ -96,7 +96,7 @@
 						class="ipMonitorVendorGrid"
 						items="{monitoring>/deployedVendors}">
 						<items>
-							<CustomTile class="ipMonitorVendorTile">
+							<CustomTile class="ipMonitorVendorTile" press=".onOpenSystemLogs">
 								<VBox class="ipMonitorVendorTileInner">
 									<VBox class="ipMonitorVendorTitleBlock">
 										<Text text="{monitoring>name}" class="ipMonitorVendorName"/>

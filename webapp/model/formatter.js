@@ -6,6 +6,7 @@ sap.ui.define([], function () {
 		STOPPED: "None",
 		STARTING: "Warning",
 		DEPLOYING: "Warning",
+		WARNING: "Warning",
 		ERROR: "Error"
 	};
 
@@ -39,6 +40,7 @@ sap.ui.define([], function () {
 					return "sap-icon://status-negative";
 				case "STARTING":
 				case "DEPLOYING":
+				case "WARNING":
 					return "sap-icon://pending";
 				default:
 					return "sap-icon://status-inactive";
