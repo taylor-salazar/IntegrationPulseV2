@@ -546,17 +546,18 @@ sap.ui.define([
 			if (LIVE_MODE === "destination") {
 				return getDestinationIntegrations().then(function (aItems) {
 					return aItems.map(function (o) {
+						var oWithMetadata = applyCachedDesignTimeMetadata(o);
 						return {
-							id: o.id,
-							name: o.name,
-							packageName: o.packageName,
-							sender: o.sender,
-							receiver: o.receiver,
+							id: oWithMetadata.id,
+							name: oWithMetadata.name,
+							packageName: oWithMetadata.packageName,
+							sender: oWithMetadata.sender,
+							receiver: oWithMetadata.receiver,
 							endpoint: "",
-							status: o.status,
+							status: oWithMetadata.status,
 							messages24h: 0,
 							errors24h: 0,
-							lastDeployed: o.lastDeployed
+							lastDeployed: oWithMetadata.lastDeployed
 						};
 					});
 				});

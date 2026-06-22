@@ -26,12 +26,6 @@ sap.ui.define([
 		return normalizeSystemName(sSystem || "Unknown System");
 	}
 
-	function latestLog(aLogs) {
-		return (aLogs || []).slice().sort(function (a, b) {
-			return new Date(b.logEnd || 0).getTime() - new Date(a.logEnd || 0).getTime();
-		})[0] || null;
-	}
-
 	function healthFromStatus(oItem, oLatestLog) {
 		var sLogStatus = (oLatestLog && oLatestLog.status || "").toUpperCase();
 		var sRuntime = (oItem.status || "").toUpperCase();
@@ -45,36 +39,11 @@ sap.ui.define([
 		return "passed";
 	}
 
-	function logSummary(oItem, oLatestLog) {
-		if (!oLatestLog) {
-			return {
-				id: oItem.id,
-				name: oItem.name,
-				status: oItem.status || "No runs",
-				logEnd: oItem.lastDeployed,
-				durationMs: "",
-				errorMessage: ""
-			};
-		}
-		return {
-			id: oItem.id,
-			name: oItem.name,
-			status: oLatestLog.status,
-			logEnd: oLatestLog.logEnd,
-			durationMs: oLatestLog.durationMs,
-			errorMessage: oLatestLog.errorMessage || ""
-		};
-	}
-
-	function ranInLast24Hours(oItem, oLatestLog) {
+	function ranInLast24Hours(oItem) {
 		if (Number(oItem.messages24h) > 0) {
 			return true;
 		}
-		if (!oLatestLog || !oLatestLog.logEnd) {
-			return false;
-		}
-		var nLogTime = new Date(oLatestLog.logEnd).getTime();
-		return !isNaN(nLogTime) && Date.now() - nLogTime <= 24 * 60 * 60 * 1000;
+		return false;
 	}
 
 	return BaseController.extend("integrationpulse.controller.Monitoring", {
@@ -119,17 +88,12 @@ sap.ui.define([
 					return Object.assign({}, oItem, {
 						sourceSystem: systemFromItem(oItem, "source"),
 						targetSystem: systemFromItem(oItem, "target"),
-						logs: [],
-						logsLoaded: false,
-						latestLog: null,
-						latestSummary: logSummary(oItem, null),
 						health: sHealth,
-						ran24h: ranInLast24Hours(oItem, null)
+						ran24h: ranInLast24Hours(oItem)
 					});
 				});
 			}).then(function (aItems) {
 				that._aAllItems = aItems;
-				that._mExpandedVendors = {};
 				that._applyViewData();
 				that.getView().setBusy(false);
 			}).catch(function (oErr) {
@@ -172,9 +136,6 @@ sap.ui.define([
 						warnings: 0,
 						messages24h: 0,
 						errors24h: 0,
-						isExpanded: this._mExpandedVendors && this._mExpandedVendors[sCollection] === (sSystem || "Unknown System"),
-						isLoading: false,
-						logsLoaded: true,
 						integrations: []
 					};
 				}
@@ -183,15 +144,12 @@ sap.ui.define([
 				oGroup.messages24h += Number(oItem.messages24h) || 0;
 				oGroup.errors24h += Number(oItem.errors24h) || 0;
 				oGroup[oItem.health === "failed" ? "failed" : (oItem.health === "warning" ? "warnings" : "passed")] += 1;
-				oGroup.logsLoaded = oGroup.logsLoaded && !!oItem.logsLoaded;
 				oGroup.integrations.push(oItem);
 			}.bind(this));
 			return Object.keys(mGroups).map(function (sKey) {
 				var oGroup = mGroups[sKey];
 				oGroup.integrations.sort(function (a, b) {
-					var nTimeDiff = new Date((b.latestSummary && b.latestSummary.logEnd) || b.lastDeployed || 0).getTime() -
-						new Date((a.latestSummary && a.latestSummary.logEnd) || a.lastDeployed || 0).getTime();
-					return nTimeDiff || (a.name || "").localeCompare(b.name || "");
+					return (a.name || "").localeCompare(b.name || "");
 				});
 				oGroup.primaryStatus = oGroup.failed ? "Error" : (oGroup.warnings ? "Warning" : "Success");
 				return oGroup;
@@ -225,93 +183,16 @@ sap.ui.define([
 			this.getModel("view").setProperty("/kpi", kpi);
 		},
 
-		_toggleGroup: function (sCollection, oEvent) {
-			var oCtx = oEvent.getSource().getBindingContext("monitoring");
-			var sPath = oCtx && oCtx.getPath();
-			if (!sPath) {
-				return;
-			}
-			var aGroups = this.getModel("monitoring").getProperty("/" + sCollection) || [];
-			var oSelectedGroup = null;
-			aGroups.forEach(function (oGroup, iIndex) {
-				var bSelected = "/" + sCollection + "/" + iIndex === sPath;
-				oGroup.isExpanded = bSelected ? !oGroup.isExpanded : false;
-				if (bSelected && oGroup.isExpanded) {
-					oSelectedGroup = oGroup;
-				}
-			});
-			this._mExpandedVendors = this._mExpandedVendors || {};
-			this._mExpandedVendors[sCollection] = oSelectedGroup ? oSelectedGroup.name : null;
-			this.getModel("monitoring").setProperty("/" + sCollection, aGroups);
-			if (oSelectedGroup && !oSelectedGroup.logsLoaded) {
-				this._loadVendorRuns(sCollection, oSelectedGroup.name);
-			}
-		},
-
-		_loadVendorRuns: function (sCollection, sSystem) {
-			var that = this;
-			var aGroups = this.getModel("monitoring").getProperty("/" + sCollection) || [];
-			var oGroup = aGroups.filter(function (oCandidate) { return oCandidate.name === sSystem; })[0];
-			if (!oGroup) {
-				return;
-			}
-			oGroup.isLoading = true;
-			this.getModel("monitoring").setProperty("/" + sCollection, aGroups);
-			Promise.all(oGroup.integrations.map(function (oItem) {
-				return BackendClient.getMessageLogs(oItem.id).catch(function () {
-					return [];
-				}).then(function (aLogs) {
-					var oLatestLog = latestLog(aLogs);
-					return {
-						id: oItem.id,
-						logs: aLogs || [],
-						logsLoaded: true,
-						latestLog: oLatestLog,
-						latestSummary: logSummary(oItem, oLatestLog),
-						health: healthFromStatus(oItem, oLatestLog),
-						ran24h: ranInLast24Hours(oItem, oLatestLog)
-					};
-				});
-			})).then(function (aUpdates) {
-				var mUpdates = {};
-				aUpdates.forEach(function (oUpdate) {
-					mUpdates[oUpdate.id] = oUpdate;
-				});
-				that._aAllItems = (that._aAllItems || []).map(function (oItem) {
-					return mUpdates[oItem.id] ? Object.assign({}, oItem, mUpdates[oItem.id]) : oItem;
-				});
-				that._applyViewData();
-			});
-		},
-
 		onGroupBySource: function () {
 			this.getModel("view").setProperty("/groupMode", "source");
 			this.getModel("view").setProperty("/groupLabel", this.getText("sourceSystemCategory"));
-			this._mExpandedVendors = {};
 			this._applyViewData();
 		},
 
 		onGroupByTarget: function () {
 			this.getModel("view").setProperty("/groupMode", "target");
 			this.getModel("view").setProperty("/groupLabel", this.getText("targetSystemCategory"));
-			this._mExpandedVendors = {};
 			this._applyViewData();
-		},
-
-		onToggleRecentVendor: function (oEvent) {
-			this._toggleGroup("recentVendors", oEvent);
-		},
-
-		onToggleDeployedVendor: function (oEvent) {
-			this._toggleGroup("deployedVendors", oEvent);
-		},
-
-		onShowPreviousRuns: function (oEvent) {
-			var oCtx = oEvent.getSource().getBindingContext("monitoring");
-			var sId = oCtx && oCtx.getProperty("id");
-			if (sId) {
-				this.navTo("monitoringDetail", { id: sId });
-			}
 		},
 
 		onRefresh: function () {

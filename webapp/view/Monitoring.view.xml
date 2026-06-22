@@ -63,14 +63,12 @@
 						class="ipMonitorVendorGrid"
 						items="{monitoring>/recentVendors}">
 						<items>
-							<CustomTile class="ipMonitorVendorTile" press=".onToggleRecentVendor">
+							<CustomTile class="ipMonitorVendorTile">
 								<VBox class="ipMonitorVendorTileInner">
-									<HBox alignItems="Start">
-										<VBox class="ipMonitorVendorTitleBlock">
-											<Text text="{monitoring>name}" class="ipMonitorVendorName"/>
-											<Text text="{monitoring>subtitle}" class="ipMonitorVendorSubtitle"/>
-										</VBox>
-									</HBox>
+									<VBox class="ipMonitorVendorTitleBlock">
+										<Text text="{monitoring>name}" class="ipMonitorVendorName"/>
+										<Text text="{monitoring>subtitle}" class="ipMonitorVendorSubtitle"/>
+									</VBox>
 									<HBox class="ipMonitorVendorCounts">
 										<VBox>
 											<Text text="{monitoring>passed}" class="ipMonitorCountValue ipMonitorMetricGood"/>
@@ -85,49 +83,25 @@
 											<Text text="{i18n>monitoringWarned}" class="ipMonitorCountLabel"/>
 										</VBox>
 									</HBox>
-									<VBox visible="{monitoring>isExpanded}" class="ipMonitorTileDropdown">
-										<BusyIndicator visible="{monitoring>isLoading}" size="1rem"/>
-										<VBox items="{monitoring>integrations}">
-											<items>
-												<VBox class="ipMonitorRunSummary">
-													<HBox alignItems="Center">
-														<ObjectStatus
-															text="{monitoring>latestSummary/status}"
-															state="{path: 'monitoring>latestSummary/status', formatter: '.formatter.logState'}"/>
-														<ToolbarSpacer/>
-														<Text text="{path: 'monitoring>latestSummary/logEnd', formatter: '.formatter.dateTime'}" class="ipMuted"/>
-													</HBox>
-													<Text text="{monitoring>name}" class="ipMonitorRunName"/>
-													<Text text="{monitoring>latestSummary/errorMessage}" visible="{= !!${monitoring>latestSummary/errorMessage} }" class="ipMonitorRunError"/>
-													<Button text="{i18n>showPreviousRuns}" type="Transparent" icon="sap-icon://history" press=".onShowPreviousRuns"/>
-												</VBox>
-											</items>
-										</VBox>
-									</VBox>
 								</VBox>
 							</CustomTile>
 						</items>
 					</FlexBox>
 				</VBox>
 
-				<Panel
-					headerText="{parts: [{path: 'i18n>monitoringDeployedVendors'}, {path: 'view>/groupLabel'}], formatter: '.formatter.formatMessage'}"
-					expandable="true"
-					expanded="false"
-					class="ipMonitorDeployedPanel">
+				<VBox class="ipMonitorSection">
+					<Title text="{parts: [{path: 'i18n>monitoringDeployedVendors'}, {path: 'view>/groupLabel'}], formatter: '.formatter.formatMessage'}" level="H3" class="ipMonitorSectionTitle"/>
 					<FlexBox
 						wrap="Wrap"
 						class="ipMonitorVendorGrid"
 						items="{monitoring>/deployedVendors}">
 						<items>
-							<CustomTile class="ipMonitorVendorTile" press=".onToggleDeployedVendor">
+							<CustomTile class="ipMonitorVendorTile">
 								<VBox class="ipMonitorVendorTileInner">
-									<HBox alignItems="Start">
-										<VBox class="ipMonitorVendorTitleBlock">
-											<Text text="{monitoring>name}" class="ipMonitorVendorName"/>
-											<Text text="{monitoring>subtitle}" class="ipMonitorVendorSubtitle"/>
-										</VBox>
-									</HBox>
+									<VBox class="ipMonitorVendorTitleBlock">
+										<Text text="{monitoring>name}" class="ipMonitorVendorName"/>
+										<Text text="{monitoring>subtitle}" class="ipMonitorVendorSubtitle"/>
+									</VBox>
 									<HBox class="ipMonitorVendorCounts">
 										<VBox>
 											<Text text="{monitoring>passed}" class="ipMonitorCountValue ipMonitorMetricGood"/>
@@ -142,30 +116,11 @@
 											<Text text="{i18n>monitoringWarned}" class="ipMonitorCountLabel"/>
 										</VBox>
 									</HBox>
-									<VBox visible="{monitoring>isExpanded}" class="ipMonitorTileDropdown">
-										<BusyIndicator visible="{monitoring>isLoading}" size="1rem"/>
-										<VBox items="{monitoring>integrations}">
-											<items>
-												<VBox class="ipMonitorRunSummary">
-													<HBox alignItems="Center">
-														<ObjectStatus
-															text="{monitoring>latestSummary/status}"
-															state="{path: 'monitoring>latestSummary/status', formatter: '.formatter.logState'}"/>
-														<ToolbarSpacer/>
-														<Text text="{path: 'monitoring>latestSummary/logEnd', formatter: '.formatter.dateTime'}" class="ipMuted"/>
-													</HBox>
-													<Text text="{monitoring>name}" class="ipMonitorRunName"/>
-													<Text text="{monitoring>latestSummary/errorMessage}" visible="{= !!${monitoring>latestSummary/errorMessage} }" class="ipMonitorRunError"/>
-													<Button text="{i18n>showPreviousRuns}" type="Transparent" icon="sap-icon://history" press=".onShowPreviousRuns"/>
-												</VBox>
-											</items>
-										</VBox>
-									</VBox>
 								</VBox>
 							</CustomTile>
 						</items>
 					</FlexBox>
-				</Panel>
+				</VBox>
 			</VBox>
 		</content>
 	</Page>
