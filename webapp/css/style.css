@@ -50,9 +50,12 @@ html, body, #content {
 
 .ipHomeLastRunsSection {
 	margin-top: 0.25rem;
+	width: 100%;
+	max-width: 58rem;
 }
 
 .ipHomeLastRunsScroller {
+	width: 100%;
 	border: 1px solid var(--sapList_BorderColor, #d9dfe5);
 	border-radius: 0.5rem;
 	background: var(--sapList_Background, #fff);

@@ -43,7 +43,7 @@
 					<Text text="{i18n>homeLastRunsSubtitle}" class="ipSubtitle sapUiSmallMarginBottom"/>
 
 					<ScrollContainer
-						height="24rem"
+						height="22rem"
 						vertical="true"
 						horizontal="false"
 						focusable="true"
@@ -56,10 +56,10 @@
 							items="{path: 'home>/lastRuns'}"
 							class="ipHomeLastRunsTable">
 							<columns>
-								<Column><Text text="{i18n>colVendor}"/></Column>
-								<Column width="9rem"><Text text="{i18n>colStatus}"/></Column>
-								<Column width="13rem" minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colLogTime}"/></Column>
-								<Column width="8rem" hAlign="End"><Text text=""/></Column>
+								<Column width="28rem"><Text text="{i18n>colVendor}"/></Column>
+								<Column width="8rem"><Text text="{i18n>colStatus}"/></Column>
+								<Column width="12rem" minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colLogTime}"/></Column>
+								<Column width="7rem" hAlign="End"><Text text=""/></Column>
 							</columns>
 							<items>
 								<ColumnListItem>
