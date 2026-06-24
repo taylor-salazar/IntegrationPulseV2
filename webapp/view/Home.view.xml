@@ -5,7 +5,7 @@
 
 	<Page title="{i18n>homeTitle}" showHeader="true" class="ipPage">
 		<content>
-			<VBox class="sapUiContentPadding">
+			<VBox class="sapUiContentPadding ipHomeContent">
 				<FlexBox class="ipHomeTiles" wrap="Wrap">
 					<items>
 						<GenericTile
@@ -37,6 +37,45 @@
 						</GenericTile>
 					</items>
 				</FlexBox>
+
+				<VBox class="ipHomeLastRunsSection">
+					<Title text="{i18n>homeLastRunsTitle}" level="H3"/>
+					<Text text="{i18n>homeLastRunsSubtitle}" class="ipSubtitle sapUiSmallMarginBottom"/>
+
+					<ScrollContainer
+						height="24rem"
+						vertical="true"
+						horizontal="false"
+						focusable="true"
+						class="ipHomeLastRunsScroller">
+						<Table
+							id="homeLastRunsTable"
+							busy="{home>/busy}"
+							busyIndicatorDelay="0"
+							noDataText="{i18n>homeNoLastRuns}"
+							items="{path: 'home>/lastRuns'}"
+							class="ipHomeLastRunsTable">
+							<columns>
+								<Column><Text text="{i18n>colVendor}"/></Column>
+								<Column width="9rem"><Text text="{i18n>colStatus}"/></Column>
+								<Column width="13rem" minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colLogTime}"/></Column>
+								<Column width="8rem" hAlign="End"><Text text=""/></Column>
+							</columns>
+							<items>
+								<ColumnListItem>
+									<cells>
+										<ObjectIdentifier title="{home>vendor}" text="{home>integrationName}"/>
+										<ObjectStatus
+											text="{home>status}"
+											state="{path: 'home>status', formatter: '.formatter.logState'}"/>
+										<Text text="{path: 'home>time', formatter: '.formatter.dateTime'}"/>
+										<Link text="{i18n>seeDetails}" press=".onOpenMonitoringDetail"/>
+									</cells>
+								</ColumnListItem>
+							</items>
+						</Table>
+					</ScrollContainer>
+				</VBox>
 			</VBox>
 		</content>
 	</Page>
