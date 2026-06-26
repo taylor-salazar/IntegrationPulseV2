@@ -56,8 +56,10 @@
 							items="{path: 'home>/lastRuns'}"
 							class="ipHomeLastRunsTable">
 							<columns>
-								<Column width="28rem"><Text text="{i18n>colVendor}"/></Column>
+								<Column width="24rem"><Text text="{i18n>colVendor}"/></Column>
 								<Column width="8rem"><Text text="{i18n>colStatus}"/></Column>
+								<Column width="8rem" hAlign="Center"><Text text="{i18n>colUnderReview}"/></Column>
+								<Column width="9rem" hAlign="Center"><Text text="{i18n>colUnresolvedIssues}"/></Column>
 								<Column width="12rem" minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colLogTime}"/></Column>
 								<Column width="7rem" hAlign="End"><Text text=""/></Column>
 							</columns>
@@ -68,6 +70,12 @@
 										<ObjectStatus
 											text="{home>status}"
 											state="{path: 'home>status', formatter: '.formatter.logState'}"/>
+										<CheckBox
+											selected="{home>underReview}"
+											select=".onUnderReviewSelect"/>
+										<ObjectNumber
+											number="{home>unresolvedIssues}"
+											state="{= ${home>unresolvedIssues} > 0 ? 'Error' : 'Success' }"/>
 										<Text text="{path: 'home>time', formatter: '.formatter.dateTime'}"/>
 										<Link text="{i18n>seeDetails}" press=".onOpenMonitoringDetail"/>
 									</cells>

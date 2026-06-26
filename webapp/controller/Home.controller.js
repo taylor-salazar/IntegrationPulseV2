@@ -2,8 +2,12 @@ sap.ui.define([
 	"integrationpulse/controller/BaseController",
 	"sap/ui/model/json/JSONModel",
 	"integrationpulse/service/BackendClient",
-	"sap/m/MessageToast"
-], function (BaseController, JSONModel, BackendClient, MessageToast) {
+	"integrationpulse/service/ReviewStore",
+	"sap/m/MessageToast",
+	"sap/m/Dialog",
+	"sap/m/TextArea",
+	"sap/m/Button"
+], function (BaseController, JSONModel, BackendClient, ReviewStore, MessageToast, Dialog, TextArea, Button) {
 	"use strict";
 
 	var LOG_FETCH_CONCURRENCY = 6;
@@ -95,9 +99,9 @@ sap.ui.define([
 			BackendClient.getIntegrationsWithMetadata().then(function (aIntegrations) {
 				return this._mapWithConcurrency(aIntegrations || [], LOG_FETCH_CONCURRENCY, function (oIntegration) {
 					return BackendClient.getMessageLogs(oIntegration.id).then(function (aLogs) {
-						return this._toLastRunRow(oIntegration, latestLog(aLogs));
+						return this._toLastRunRow(oIntegration, latestLog(aLogs), aLogs);
 					}.bind(this)).catch(function () {
-						return this._toLastRunRow(oIntegration, null);
+						return this._toLastRunRow(oIntegration, null, []);
 					}.bind(this));
 				}.bind(this));
 			}.bind(this)).then(function (aRows) {
@@ -114,19 +118,89 @@ sap.ui.define([
 			});
 		},
 
-		_toLastRunRow: function (oIntegration, oLog) {
+		_toLastRunRow: function (oIntegration, oLog, aLogs) {
 			var sUnknown = this.getText("unknownSystem");
 			var sSource = formatSystemName(oIntegration.sender, sUnknown);
 			var sTarget = formatSystemName(oIntegration.receiver, sUnknown);
 			var sTime = oLog && oLog.logEnd || "";
+			var sMessageId = oLog && oLog.messageId || "";
+			var sReviewKey = ReviewStore.getReviewKey(sMessageId, oIntegration.id);
+			var oReview = ReviewStore.getReview(sReviewKey);
 			return {
 				id: oIntegration.id,
+				messageId: sMessageId,
+				reviewKey: sReviewKey,
 				vendor: sSource + " -> " + sTarget,
 				integrationName: oIntegration.name || oIntegration.id,
 				status: oLog && oLog.status || this.getText("homeNoRunStatus"),
 				time: sTime,
-				sortTime: sTime ? dateTimeValue(sTime) : 0
+				sortTime: sTime ? dateTimeValue(sTime) : 0,
+				underReview: !!oReview,
+				reviewDescription: oReview && oReview.description || "",
+				unresolvedIssues: ReviewStore.countUnresolvedFailed(aLogs)
 			};
+		},
+
+		onUnderReviewSelect: function (oEvent) {
+			var oCtx = oEvent.getSource().getBindingContext("home");
+			var bSelected = oEvent.getParameter("selected");
+			var sReviewKey = oCtx && oCtx.getProperty("reviewKey");
+			if (!oCtx || !sReviewKey) {
+				return;
+			}
+			if (!bSelected) {
+				ReviewStore.clearReview(sReviewKey);
+				oCtx.getModel().setProperty(oCtx.getPath() + "/underReview", false);
+				oCtx.getModel().setProperty(oCtx.getPath() + "/reviewDescription", "");
+				return;
+			}
+			this._openReviewDialog(oCtx);
+		},
+
+		_openReviewDialog: function (oCtx) {
+			var oModel = oCtx.getModel();
+			var sPath = oCtx.getPath();
+			var sExisting = oCtx.getProperty("reviewDescription") || "";
+			var oTextArea = new TextArea({
+				width: "100%",
+				rows: 6,
+				value: sExisting,
+				placeholder: this.getText("underReviewDescriptionPlaceholder")
+			});
+			var oDialog = new Dialog({
+				title: this.getText("underReviewDialogTitle"),
+				contentWidth: "32rem",
+				content: [oTextArea],
+				beginButton: new Button({
+					text: this.getText("save"),
+					type: "Emphasized",
+					press: function () {
+						var sDescription = (oTextArea.getValue() || "").trim();
+						if (!sDescription) {
+							MessageToast.show(this.getText("underReviewDescriptionRequired"));
+							return;
+						}
+						ReviewStore.setReview(oCtx.getProperty("reviewKey"), sDescription);
+						oModel.setProperty(sPath + "/underReview", true);
+						oModel.setProperty(sPath + "/reviewDescription", sDescription);
+						oDialog.close();
+					}.bind(this)
+				}),
+				endButton: new Button({
+					text: this.getText("close"),
+					press: function () {
+						if (!sExisting) {
+							oModel.setProperty(sPath + "/underReview", false);
+						}
+						oDialog.close();
+					}
+				}),
+				afterClose: function () {
+					oDialog.destroy();
+				}
+			});
+			this.getView().addDependent(oDialog);
+			oDialog.open();
 		},
 
 		_mapWithConcurrency: function (aItems, iLimit, fnMapper) {
@@ -154,6 +228,13 @@ sap.ui.define([
 				}
 				runNext();
 			});
+		},
+
+		onExit: function () {
+			if (this._oReviewDialog) {
+				this._oReviewDialog.destroy();
+				this._oReviewDialog = null;
+			}
 		}
 	});
 });

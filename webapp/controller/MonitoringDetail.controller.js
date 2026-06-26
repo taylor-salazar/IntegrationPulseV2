@@ -2,10 +2,11 @@ sap.ui.define([
 	"integrationpulse/controller/BaseController",
 	"sap/ui/model/json/JSONModel",
 	"integrationpulse/service/BackendClient",
+	"integrationpulse/service/ReviewStore",
 	"sap/ui/core/Fragment",
 	"sap/m/MessageToast",
 	"sap/m/MessageBox"
-], function (BaseController, JSONModel, BackendClient, Fragment, MessageToast, MessageBox) {
+], function (BaseController, JSONModel, BackendClient, ReviewStore, Fragment, MessageToast, MessageBox) {
 	"use strict";
 
 	function normalizeSystemName(sValue) {
@@ -186,7 +187,9 @@ sap.ui.define([
 					payload: oPayload || null,
 					payloadId: oPayload && oPayload.id,
 					hasPayload: !!oPayload,
-					resultText: oPayload ? this.getText("viewResults") : ""
+					resultText: oPayload ? this.getText("viewResults") : "",
+					resolvable: String(oLog.status || "").toUpperCase() === "FAILED" && !!oLog.messageId,
+					resolved: ReviewStore.isResolved(oLog.messageId)
 				});
 			}.bind(this));
 		},
@@ -236,6 +239,17 @@ sap.ui.define([
 					title: this.getText("errorDetailTitle") + " — " + oCtx.getProperty("messageId")
 				});
 			}
+		},
+
+		onResolvedSelect: function (oEvent) {
+			var oCtx = oEvent.getSource().getBindingContext("logs");
+			if (!oCtx) {
+				return;
+			}
+			var sMessageId = oCtx.getProperty("messageId");
+			var bResolved = oEvent.getParameter("selected");
+			ReviewStore.setResolved(sMessageId, bResolved);
+			oCtx.getModel().setProperty(oCtx.getPath() + "/resolved", bResolved);
 		},
 
 		onOpenPayloadResult: function (oEvent) {
