@@ -6,8 +6,9 @@ sap.ui.define([
 	"sap/m/MessageToast",
 	"sap/m/Dialog",
 	"sap/m/TextArea",
-	"sap/m/Button"
-], function (BaseController, JSONModel, BackendClient, ReviewStore, MessageToast, Dialog, TextArea, Button) {
+	"sap/m/Button",
+	"sap/m/Text"
+], function (BaseController, JSONModel, BackendClient, ReviewStore, MessageToast, Dialog, TextArea, Button, Text) {
 	"use strict";
 
 	var LOG_FETCH_CONCURRENCY = 6;
@@ -155,6 +156,35 @@ sap.ui.define([
 				return;
 			}
 			this._openReviewDialog(oCtx);
+		},
+
+		onOpenReviewNote: function (oEvent) {
+			var oCtx = oEvent.getSource().getBindingContext("home");
+			var sDescription = oCtx && oCtx.getProperty("reviewDescription");
+			if (!sDescription) {
+				return;
+			}
+			var oDialog = new Dialog({
+				title: this.getText("reviewNoteDialogTitle"),
+				contentWidth: "32rem",
+				content: [
+					new Text({
+						text: sDescription,
+						wrapping: true
+					}).addStyleClass("sapUiSmallMargin")
+				],
+				endButton: new Button({
+					text: this.getText("close"),
+					press: function () {
+						oDialog.close();
+					}
+				}),
+				afterClose: function () {
+					oDialog.destroy();
+				}
+			});
+			this.getView().addDependent(oDialog);
+			oDialog.open();
 		},
 
 		_openReviewDialog: function (oCtx) {

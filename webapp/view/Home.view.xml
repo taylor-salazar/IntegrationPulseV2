@@ -59,6 +59,7 @@
 								<Column width="24rem"><Text text="{i18n>colVendor}"/></Column>
 								<Column width="8rem"><Text text="{i18n>colStatus}"/></Column>
 								<Column width="8rem" hAlign="Center"><Text text="{i18n>colUnderReview}"/></Column>
+								<Column width="8rem"><Text text="{i18n>colReviewNote}"/></Column>
 								<Column width="9rem" hAlign="Center"><Text text="{i18n>colUnresolvedIssues}"/></Column>
 								<Column width="12rem" minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>colLogTime}"/></Column>
 								<Column width="7rem" hAlign="End"><Text text=""/></Column>
@@ -73,6 +74,10 @@
 										<CheckBox
 											selected="{home>underReview}"
 											select=".onUnderReviewSelect"/>
+										<Link
+											text="{i18n>viewReviewNote}"
+											visible="{= !!${home>reviewDescription} }"
+											press=".onOpenReviewNote"/>
 										<ObjectNumber
 											number="{home>unresolvedIssues}"
 											state="{= ${home>unresolvedIssues} > 0 ? 'Error' : 'Success' }"/>
