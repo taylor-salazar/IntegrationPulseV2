@@ -6,6 +6,8 @@ sap.ui.define([
 ], function (BaseController, JSONModel, BackendClient, MessageToast) {
 	"use strict";
 
+	// Monitoring controller: turns runtime status and integration metadata into
+	// Source/Target system health tiles for operations users.
 	var AUTO_REFRESH_MS = 15000;
 
 	function normalizeSystemName(sValue) {
@@ -39,6 +41,8 @@ sap.ui.define([
 	}
 
 	function healthFromStatus(oItem, oLatestLog) {
+		// Collapse several technical statuses into the three UI health buckets
+		// shown on vendor tiles: passed, warning, failed.
 		var sLogStatus = (oLatestLog && oLatestLog.status || "").toUpperCase();
 		var sRuntime = (oItem.status || "").toUpperCase();
 		if (sLogStatus === "FAILED" || sRuntime === "ERROR" || Number(oItem.errors24h) > 0) {
@@ -61,6 +65,7 @@ sap.ui.define([
 	return BaseController.extend("integrationpulse.controller.Monitoring", {
 
 		onInit: function () {
+			// monitoring holds displayed data. view holds UI state and KPI totals.
 			this.setModel(new JSONModel({
 				items: [],
 				recentVendors: [],
@@ -92,6 +97,8 @@ sap.ui.define([
 		},
 
 		_loadData: function () {
+			// Load both metadata and runtime status, then merge by integration ID.
+			// Metadata supplies Source/Target names; runtime status supplies health.
 			var that = this;
 			this.getView().setBusy(true);
 			Promise.all([
@@ -151,6 +158,8 @@ sap.ui.define([
 		},
 
 		_groupSystems: function (aItems, bRecentOnly, sCollection, sMode) {
+			// Convert integration rows into Source/Target system tiles. Each tile
+			// aggregates pass/fail/warning totals for its contained integrations.
 			var mGroups = {};
 			aItems.forEach(function (oItem) {
 				var sSystem = sMode === "target" ? oItem.targetSystem : oItem.sourceSystem;

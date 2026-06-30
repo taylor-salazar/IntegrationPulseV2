@@ -1,4 +1,8 @@
-"""Monitoring routes: runtime status list, detail, message processing logs."""
+"""Monitoring routes: runtime status list, detail, message processing logs.
+
+The frontend combines this runtime/log data with integration metadata so users
+can see business-friendly Source/Target system health.
+"""
 from __future__ import annotations
 
 from typing import List

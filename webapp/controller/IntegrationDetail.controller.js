@@ -8,6 +8,10 @@ sap.ui.define([
 ], function (BaseController, JSONModel, BackendClient, Fragment, MessageToast, MessageBox) {
 	"use strict";
 
+	// Integration Detail controller: lets a user inspect one deployed
+	// integration, edit supported externalized parameters, save configuration
+	// changes, and redeploy the integration.
+
 	// Human labels for the enterprise parameter group prefixes.
 	var GROUP_LABELS = {
 		extract: "Extract",
@@ -75,6 +79,11 @@ sap.ui.define([
 	return BaseController.extend("integrationpulse.controller.IntegrationDetail", {
 
 		onInit: function () {
+			// integration: selected artifact details
+			// parameters: grouped editable externalized parameters
+			// payloads/payloadDetail: captured result payload previews
+			// scheduleOptions: static select options for timer-like parameters
+			// detailView: UI-only state such as busy/dirty
 			this.setModel(new JSONModel({}), "integration");
 			this.setModel(new JSONModel({ groups: [] }), "parameters");
 			this.setModel(new JSONModel({ items: [] }), "payloads");

@@ -11,6 +11,8 @@ sap.ui.define([
 ], function (BaseController, JSONModel, BackendClient, ReviewStore, MessageToast, Dialog, TextArea, Button, Text) {
 	"use strict";
 
+	// The Home page is the operational landing page. It shows high-level entry
+	// tiles and a compact "latest run" table for every deployed integration.
 	var LOG_FETCH_CONCURRENCY = 6;
 
 	function normalizeSystemName(sValue) {
@@ -94,6 +96,10 @@ sap.ui.define([
 		},
 
 		_loadLastRuns: function () {
+			// Data flow:
+			// 1. Load deployed integrations with Source/Target metadata.
+			// 2. Fetch message logs for each integration with a concurrency cap.
+			// 3. Convert integration + latest log + review state into table rows.
 			var oModel = this.getModel("home");
 			oModel.setProperty("/busy", true);
 
@@ -120,6 +126,8 @@ sap.ui.define([
 		},
 
 		_toLastRunRow: function (oIntegration, oLog, aLogs) {
+			// This converts service-layer data into exactly the fields Home.view.xml
+			// binds to. Keeping this mapping here makes the XML view simple.
 			var sUnknown = this.getText("unknownSystem");
 			var sSource = formatSystemName(oIntegration.sender, sUnknown);
 			var sTarget = formatSystemName(oIntegration.receiver, sUnknown);
@@ -143,6 +151,8 @@ sap.ui.define([
 		},
 
 		onUnderReviewSelect: function (oEvent) {
+			// Checking the box requires a human-readable note. Unchecking clears
+			// the local review state for the latest run/integration key.
 			var oCtx = oEvent.getSource().getBindingContext("home");
 			var bSelected = oEvent.getParameter("selected");
 			var sReviewKey = oCtx && oCtx.getProperty("reviewKey");
@@ -159,6 +169,8 @@ sap.ui.define([
 		},
 
 		onOpenReviewNote: function (oEvent) {
+			// Review notes are read-only here. Editing happens by clearing and
+			// re-checking Under Review, which keeps the table interaction compact.
 			var oCtx = oEvent.getSource().getBindingContext("home");
 			var sDescription = oCtx && oCtx.getProperty("reviewDescription");
 			if (!sDescription) {

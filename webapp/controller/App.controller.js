@@ -4,9 +4,13 @@ sap.ui.define([
 ], function (BaseController, JSONModel) {
 	"use strict";
 
+	// Shell controller: owns the top bar, left navigation, and route selection state.
+	// It does not load business data; it keeps the app frame in sync with routing.
 	return BaseController.extend("integrationpulse.controller.App", {
 
 		onInit: function () {
+			// appView is a view-state model. It stores UI-only state such as
+			// whether the sidebar is expanded and which navigation item is selected.
 			this.setModel(new JSONModel({
 				sideExpanded: true,
 				selectedNavKey: "home",
@@ -18,6 +22,8 @@ sap.ui.define([
 		},
 
 		_onRouteMatched: function (oEvent) {
+			// Detail routes still highlight their parent nav item. For example,
+			// #/monitoring/MyIntegration should keep Monitoring selected.
 			var sName = oEvent.getParameter("name");
 			var sKey = "home";
 			if (sName.indexOf("monitoring") === 0) {
@@ -34,6 +40,8 @@ sap.ui.define([
 		},
 
 		onNavSelect: function (oEvent) {
+			// The sidebar only emits a key. This handler translates that key into
+			// a router navigation action.
 			var sKey = oEvent.getParameter("item").getKey();
 			if (sKey === "home") {
 				var oModel = this.getModel("appView");
@@ -47,6 +55,8 @@ sap.ui.define([
 		},
 
 		onGlobalRefresh: function () {
+			// Re-fire the current hash route so the active controller reloads its
+			// data without forcing a full browser refresh.
 			this.getRouter().getHashChanger().fireEvent("hashChanged", {
 				newHash: this.getRouter().getHashChanger().getHash()
 			});

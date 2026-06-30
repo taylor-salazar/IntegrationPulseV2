@@ -44,6 +44,8 @@ async def create_payload(
     (JSON, CSV, XML, plain text) with metadata supplied by query parameters
     or HTTP headers.
     """
+    # Accept both old JSON wrapper payloads and raw text bodies. This keeps the
+    # endpoint flexible for Integration Suite HTTP receiver calls.
     raw_body = await request.body()
     headers = request.headers
     content_type = headers.get("content-type", "text/plain").split(";")[0] or "text/plain"
@@ -81,6 +83,7 @@ async def create_payload(
     created_at = _now()
     payload_bytes = body.payload.encode("utf-8")
     size_bytes = len(payload_bytes)
+    # Large text payloads are stored but not rendered inline in the browser.
     download_only = size_bytes > PREVIEW_LIMIT_BYTES
     item = {
         "id": str(uuid4()),

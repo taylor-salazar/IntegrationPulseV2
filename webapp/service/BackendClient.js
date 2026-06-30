@@ -4,6 +4,10 @@ sap.ui.define([
 ], function (Log, config) {
 	"use strict";
 
+	// BackendClient is the frontend's data access boundary. Controllers call this
+	// service instead of using fetch directly, so mock, destination, and proxy
+	// modes can share one normalized API.
+
 	// Resolve mock mode: ?mock=false overrides config.useMock at runtime.
 	function resolveUseMock() {
 		var sParam = new URLSearchParams(window.location.search).get("mock");
@@ -55,6 +59,9 @@ sap.ui.define([
 	}
 
 	function getJSON(sUrl) {
+		// Thin GET wrapper used by every data-loading method. It converts HTTP
+		// failures into thrown Error objects so controllers can show one message
+		// path regardless of the backing API.
 		return fetch(sUrl, {
 			headers: { "Accept": "application/json" },
 			credentials: "include"
@@ -134,6 +141,9 @@ sap.ui.define([
 	}
 
 	function mapIntegration(oRaw) {
+		// Normalize Integration Suite/runtime/mock shapes into the field names the
+		// UI expects. The rest of the app should not care whether the source used
+		// Id, id, Name, Sender, SourceSystem, etc.
 		return {
 			id: oRaw.Id || oRaw.id || "",
 			name: oRaw.Name || oRaw.name || oRaw.Id || oRaw.id || "",
@@ -181,6 +191,8 @@ sap.ui.define([
 	}
 
 	function mapMessageLog(oRaw) {
+		// Normalize Message Processing Log records. The UI treats messageId as the
+		// identity of a single run, which is why review/resolution features key off it.
 		return {
 			messageId: oRaw.MessageGuid || oRaw.MessageId || oRaw.messageId || "",
 			status: oRaw.Status || oRaw.status || "",

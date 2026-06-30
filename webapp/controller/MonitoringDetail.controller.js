@@ -9,6 +9,10 @@ sap.ui.define([
 ], function (BaseController, JSONModel, BackendClient, ReviewStore, Fragment, MessageToast, MessageBox) {
 	"use strict";
 
+	// Monitoring Detail controller: shows Message Processing Logs for either one
+	// integration or all integrations belonging to a selected Source/Target system.
+	// It also links logs to payload results and local review/resolution state.
+
 	function normalizeSystemName(sValue) {
 		return String(sValue || "")
 			.replace(/[_-]+/g, " ")
@@ -83,6 +87,8 @@ sap.ui.define([
 		},
 
 		_load: function () {
+			// Single-integration mode. Load the runtime item, its message logs, and
+			// any captured payloads, then attach payload/review state to each log.
 			var that = this;
 			this.getModel("monDetailView").setProperty("/busy", true);
 			Promise.all([
@@ -102,6 +108,8 @@ sap.ui.define([
 		},
 
 		_loadSystem: function () {
+			// System mode. Resolve the selected Source/Target system into its
+			// integrations, then merge all of their logs into one run-history table.
 			var that = this;
 			this.getModel("monDetailView").setProperty("/busy", true);
 			Promise.all([
@@ -173,6 +181,8 @@ sap.ui.define([
 		},
 
 		_attachPayloads: function (aLogs, aPayloads, oIntegration) {
+			// Message logs and payload captures are separate datasets. messageId is
+			// the join key that lets the UI show "View Results" on the right log row.
 			var mPayloadByMessageId = {};
 			(aPayloads || []).forEach(function (oPayload) {
 				if (oPayload.messageId && !mPayloadByMessageId[oPayload.messageId]) {
@@ -242,6 +252,8 @@ sap.ui.define([
 		},
 
 		onResolvedSelect: function (oEvent) {
+			// Resolution is local-state for now and is keyed by messageId because a
+			// single integration can have many failed runs.
 			var oCtx = oEvent.getSource().getBindingContext("logs");
 			if (!oCtx) {
 				return;

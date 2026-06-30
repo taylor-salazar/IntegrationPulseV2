@@ -1,4 +1,8 @@
-"""PostgreSQL-backed storage for captured integration payloads."""
+"""PostgreSQL-backed storage for captured integration payloads.
+
+This module is the persistence boundary for payload capture. Route handlers pass
+plain dictionaries in and receive plain dictionaries out; SQL details stay here.
+"""
 from __future__ import annotations
 
 import json
@@ -36,6 +40,7 @@ _INITIALIZED = False
 
 
 def _credential_dsn(credentials: dict) -> str:
+    """Build a PostgreSQL DSN from common BTP service-binding credential shapes."""
     for key in ("uri", "url", "dsn"):
         if credentials.get(key):
             return credentials[key]
@@ -57,6 +62,7 @@ def _credential_dsn(credentials: dict) -> str:
 
 
 def _vcap_postgres_dsn() -> str:
+    """Find a PostgreSQL binding in VCAP_SERVICES when deployed to Cloud Foundry."""
     raw = os.getenv("VCAP_SERVICES")
     if not raw:
         return ""
@@ -131,6 +137,7 @@ def _row_to_payload(row: dict, include_payload: bool = True) -> dict:
 
 
 def init_db() -> None:
+    """Create the payload table/index once per process before storage access."""
     global _INITIALIZED
     if _INITIALIZED:
         return

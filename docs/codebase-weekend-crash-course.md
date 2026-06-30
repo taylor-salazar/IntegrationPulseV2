@@ -1,8 +1,8 @@
-# Integration Pulse Codebase Weekend Crash Course
+# Integration Pulse Codebase Crash Course
 
 This file is the durable learning plan for understanding the Integration Pulse codebase. It is written for a UCSD Computer Engineering graduate who wants to understand the system deeply rather than rely on generated code without review.
 
-The intended format is a weekend crash course: 8 hours on Saturday and 8 hours on Sunday. The focus is the local codebase, with SAP BTP concepts explained only when they appear directly in code.
+The original format was a weekend crash course, but this can also be used as a self-paced curriculum. The focus is the local codebase, with SAP BTP concepts explained only when they appear directly in code. For the most current file-by-file reading sequence, start with `docs/codebase-reading-order.md`.
 
 ## Learning Objective
 

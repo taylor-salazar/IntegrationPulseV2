@@ -7,9 +7,17 @@ sap.ui.define([
 ], function (BaseController, JSONModel, BackendClient, MessageToast, MessageBox) {
 	"use strict";
 
+	// Integrations controller: presents the deployed integration catalog.
+	// It loads runtime artifacts, enriches them with design-time metadata, and
+	// groups them by Source or Target system for HR-friendly browsing.
 	return BaseController.extend("integrationpulse.controller.Integrations", {
 
 		onInit: function () {
+			// Separate models keep each concern small:
+			// integrations: raw/prepared integration list
+			// integrationGroups: Source/Target category tiles
+			// selectedIntegrations: cards for the currently selected category
+			// view: UI state such as mode, grouping, busy, and deploying ID
 			this.setModel(new JSONModel({ items: [] }), "integrations");
 			this.setModel(new JSONModel({ groups: [] }), "integrationGroups");
 			this.setModel(new JSONModel({ items: [] }), "selectedIntegrations");
@@ -38,6 +46,9 @@ sap.ui.define([
 		},
 
 		_loadData: function () {
+			// Runtime artifacts load first because they represent deployed content.
+			// Design-time metadata then fills in Sender/Receiver values when the
+			// runtime API does not include them.
 			var oData = this.getModel("integrations");
 			this._iMetadataLoadToken = (this._iMetadataLoadToken || 0) + 1;
 			var iLoadToken = this._iMetadataLoadToken;
@@ -77,6 +88,9 @@ sap.ui.define([
 		},
 
 		_enrichMetadataQueue: function (aItems, iLoadToken, bApplyChunks) {
+			// Metadata calls are intentionally throttled. Large tenants can have
+			// many integrations, and firing hundreds of requests at once makes the
+			// app feel frozen and can stress the destination/API.
 			var aQueue = (aItems || []).slice();
 			var aResults = aQueue.slice();
 			var iNext = 0;

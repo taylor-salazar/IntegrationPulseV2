@@ -1,4 +1,8 @@
-"""Integration routes: list, detail, configurations, deploy."""
+"""Integration routes: list, detail, configurations, deploy.
+
+These handlers intentionally stay thin. They translate HTTP requests into calls
+to btp_client, which owns the mock/live Integration Suite behavior.
+"""
 from __future__ import annotations
 
 from typing import List
@@ -36,6 +40,8 @@ async def get_configurations(integration_id: str):
 
 @router.put("/{integration_id}/configurations")
 async def update_configurations(integration_id: str, body: ConfigurationUpdateRequest):
+    # Configuration updates are passed as one request so btp_client can send them
+    # through the Integration Suite batch endpoint.
     return await btp_client.update_configurations(integration_id, body.configurations)
 
 

@@ -3,6 +3,9 @@ sap.ui.define([
 ], function (Log) {
 	"use strict";
 
+	// ReviewStore owns local review/resolution state. This is intentionally
+	// frontend-only for now; shared multi-user review state should eventually move
+	// into a backend table keyed by messageId.
 	var RESOLVED_KEY = "integrationPulse.resolvedMessages.v1";
 	var REVIEW_KEY = "integrationPulse.underReview.v1";
 
@@ -24,6 +27,8 @@ sap.ui.define([
 	}
 
 	function reviewKey(sMessageId, sIntegrationId) {
+		// Prefer messageId because it identifies a concrete run. Fall back to the
+		// integration when a latest run does not exist yet.
 		return sMessageId ? "message:" + sMessageId : "integration:" + (sIntegrationId || "");
 	}
 
@@ -50,6 +55,8 @@ sap.ui.define([
 		},
 
 		countUnresolvedFailed: function (aLogs) {
+			// Product decision: only FAILED logs count as unresolved issues. Warnings
+			// and processing/retry states are not included in this counter.
 			return (aLogs || []).filter(function (oLog) {
 				return String(oLog && oLog.status || "").toUpperCase() === "FAILED" &&
 					!this.isResolved(oLog.messageId);
