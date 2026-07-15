@@ -9,6 +9,9 @@ sap.ui.define([], function () {
 	 *  liveMode     - "destination" => call /api/v1 through BTP/UI5 destination routing
 	 *                 "proxy"       => call the FastAPI proxy at backendBaseUrl
 	 *  destinationBaseUrl - same-origin BTP destination route for SAP Integration Suite
+	 *  immediateRunBaseUrl - same-origin route for HTTPS sender endpoints. When an
+	 *                        IntegrationRuntimeArtifact endpoint is "/http/...",
+	 *                        leave this empty so the endpoint is called as-is.
 	 *  payloadBaseUrl - custom payload service route. In BTP, route this to the
 	 *                   payload receiver service, not the Integration Suite destination.
 	 *  backendBaseUrl - base URL of the optional FastAPI proxy (see ../../backend).
@@ -23,6 +26,7 @@ sap.ui.define([], function () {
 		useMock: false,
 		liveMode: "destination",
 		destinationBaseUrl: "/api/v1",
+		immediateRunBaseUrl: "",
 		payloadBaseUrl: "/payload-api/v1",
 		backendBaseUrl: "http://localhost:8000"
 	};

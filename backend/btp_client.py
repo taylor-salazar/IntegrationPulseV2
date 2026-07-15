@@ -22,6 +22,7 @@ import os
 import re
 from typing import List
 from urllib.parse import quote
+from urllib.parse import urljoin
 
 import httpx
 
@@ -31,6 +32,7 @@ from models import (
     Configuration,
     ConfigurationUpdate,
     DeployResponse,
+    ImmediateRunResponse,
     Integration,
     MessageLog,
     MonitoringItem,
@@ -92,6 +94,7 @@ async def list_integrations() -> List[Integration]:
             isRuntimeArtifact=True,
             sender=r.get("Sender", "") or "",
             receiver=r.get("Receiver", "") or "",
+            endpoint=r.get("Endpoint", "") or r.get("Url", "") or "",
         )
         for r in results
     ]
@@ -227,6 +230,57 @@ async def deploy_integration(
         resp.raise_for_status()
         task_id = resp.text.strip() or None
     return DeployResponse(id=integration_id, status="STARTING", taskId=task_id)
+
+
+def _tenant_runtime_base() -> str:
+    """Base URL for HTTPS sender endpoints, separate from the OData /api/v1 root."""
+    if SETTINGS.immediate_run_base:
+        return SETTINGS.immediate_run_base.rstrip("/")
+    return re.sub(r"/api/v1/?$", "", SETTINGS.is_api_base).rstrip("/")
+
+
+def _join_runtime_endpoint(endpoint: str) -> str:
+    if re.match(r"^https?://", endpoint or "", re.IGNORECASE):
+        return endpoint
+    return urljoin(_tenant_runtime_base() + "/", str(endpoint or "").lstrip("/"))
+
+
+async def trigger_immediate_run(
+    integration_id: str, endpoint: str | None = None
+) -> ImmediateRunResponse:
+    # This calls the separate HTTPS sender endpoint for the iFlow. It does not
+    # update configurations, redeploy the artifact, or modify timer parameters.
+    if SETTINGS.use_mock:
+        return ImmediateRunResponse(
+            id=integration_id,
+            status="TRIGGERED",
+            message="Mock immediate run started.",
+        )
+
+    resolved_endpoint = endpoint
+    if not resolved_endpoint:
+        item = await get_integration(integration_id)
+        resolved_endpoint = item.endpoint if item else ""
+    if not resolved_endpoint:
+        raise RuntimeError("No HTTPS sender endpoint is available for this integration.")
+
+    token = await get_access_token()
+    async with httpx.AsyncClient(timeout=120) as client:
+        resp = await client.post(
+            _join_runtime_endpoint(resolved_endpoint),
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            },
+            content="{}",
+        )
+        resp.raise_for_status()
+    return ImmediateRunResponse(
+        id=integration_id,
+        status="TRIGGERED",
+        message="Immediate run request sent.",
+    )
 
 
 # --------------------------------------------------------------------------- #

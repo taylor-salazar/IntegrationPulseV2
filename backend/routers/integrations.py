@@ -14,6 +14,8 @@ from models import (
     Configuration,
     ConfigurationUpdateRequest,
     DeployResponse,
+    ImmediateRunRequest,
+    ImmediateRunResponse,
     Integration,
 )
 
@@ -48,3 +50,8 @@ async def update_configurations(integration_id: str, body: ConfigurationUpdateRe
 @router.post("/{integration_id}/deploy", response_model=DeployResponse)
 async def deploy_integration(integration_id: str, body: ConfigurationUpdateRequest):
     return await btp_client.deploy_integration(integration_id, body.configurations)
+
+
+@router.post("/{integration_id}/trigger", response_model=ImmediateRunResponse)
+async def trigger_immediate_run(integration_id: str, body: ImmediateRunRequest):
+    return await btp_client.trigger_immediate_run(integration_id, body.endpoint)

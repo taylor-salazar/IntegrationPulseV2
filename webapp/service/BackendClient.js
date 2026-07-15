@@ -155,6 +155,7 @@ sap.ui.define([
 			packageName: oRaw.PackageId || oRaw.PackageName || oRaw.packageName || "",
 			version: oRaw.Version || oRaw.version || "",
 			status: oRaw.Status || oRaw.status || "STOPPED",
+			endpoint: oRaw.Endpoint || oRaw.endpoint || oRaw.Url || oRaw.url || "",
 			description: oRaw.Description || oRaw.description || "",
 			parameterCount: oRaw.parameterCount || 0,
 			lastDeployed: oRaw.DeployedOn || oRaw.LastDeployedOn || oRaw.lastDeployed || null
@@ -227,6 +228,22 @@ sap.ui.define([
 
 	function getPayloadUrl(sPath) {
 		return (config.payloadBaseUrl || "/payload-api/v1") + sPath;
+	}
+
+	function joinUrl(sBase, sPath) {
+		if (!sPath) {
+			return "";
+		}
+		if (/^https?:\/\//i.test(sPath)) {
+			return sPath;
+		}
+		var sNormalizedBase = String(sBase || "").replace(/\/$/, "");
+		var sNormalizedPath = String(sPath).charAt(0) === "/" ? String(sPath) : "/" + sPath;
+		return sNormalizedBase + sNormalizedPath;
+	}
+
+	function getImmediateRunUrl(sEndpoint) {
+		return joinUrl(config.immediateRunBaseUrl || "", sEndpoint);
 	}
 
 	function getDestinationUrl(sPath) {
@@ -448,6 +465,34 @@ sap.ui.define([
 		});
 	}
 
+	function triggerDestinationIntegration(oIntegration) {
+		var sEndpoint = oIntegration && oIntegration.endpoint;
+		var sUrl = getImmediateRunUrl(sEndpoint);
+		if (!sUrl) {
+			return Promise.reject(new Error("No HTTPS sender endpoint is available for this integration."));
+		}
+		return fetch(sUrl, {
+			method: "POST",
+			headers: {
+				"Accept": "application/json",
+				"Content-Type": "application/json"
+			},
+			credentials: "include",
+			body: "{}"
+		}).then(function (res) {
+			if (!res.ok) {
+				return res.text().then(function (t) {
+					throw new Error(t || (res.status + " " + res.statusText));
+				});
+			}
+			return {
+				id: oIntegration.id,
+				status: "TRIGGERED",
+				message: "Immediate run request sent."
+			};
+		});
+	}
+
 	/**
 	 * Thin client over Integration Pulse data sources:
 	 * mock fixtures, destination live mode, and optional FastAPI proxy mode.
@@ -580,6 +625,28 @@ sap.ui.define([
 				config.backendBaseUrl + "/api/integrations/" + encodeURIComponent(sId) + "/deploy",
 				"POST",
 				{ configurations: aConfigurations }
+			);
+		},
+
+		/**
+		 * Trigger the separate HTTPS sender endpoint for an immediate run.
+		 * This intentionally does not update timer parameters or redeploy the artifact.
+		 */
+		triggerImmediateRun: function (oIntegration) {
+			var sId = (oIntegration && oIntegration.id) || String(oIntegration || "");
+			if (USE_MOCK) {
+				Log.info("[mock] trigger immediate run " + sId);
+				return delay(700).then(function () {
+					return { id: sId, status: "TRIGGERED", message: "Mock immediate run started." };
+				});
+			}
+			if (LIVE_MODE === "destination") {
+				return triggerDestinationIntegration(oIntegration || { id: sId });
+			}
+			return sendJSON(
+				config.backendBaseUrl + "/api/integrations/" + encodeURIComponent(sId) + "/trigger",
+				"POST",
+				{ endpoint: oIntegration && oIntegration.endpoint }
 			);
 		},
 

@@ -15,6 +15,8 @@ server:
         backend:
           - destination: Integration-Suite-Dev
             path: /api
+          - destination: Integration-Suite-Dev
+            path: /http
 framework:
   name: OpenUI5
   version: "1.120.20"

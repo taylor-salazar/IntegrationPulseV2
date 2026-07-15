@@ -10,7 +10,8 @@ sap.ui.define([
 
 	// Integration Detail controller: lets a user inspect one deployed
 	// integration, edit supported externalized parameters, save configuration
-	// changes, and redeploy the integration.
+	// changes, redeploy the integration, or trigger its separate HTTPS sender
+	// endpoint for an immediate run without touching timer parameters.
 
 	// Human labels for the enterprise parameter group prefixes.
 	var GROUP_LABELS = {
@@ -440,6 +441,36 @@ sap.ui.define([
 						that._doDeploy(sName);
 					}
 				}
+			});
+		},
+
+		onDeployImmediately: function () {
+			var that = this;
+			var oIntegration = this.getModel("integration").getData() || {};
+			var sName = oIntegration.name || oIntegration.id || this._sId;
+			MessageBox.confirm(this.getText("deployImmediatelyConfirmText", [sName]), {
+				title: this.getText("deployImmediatelyConfirmTitle"),
+				icon: MessageBox.Icon.WARNING,
+				actions: [MessageBox.Action.OK, MessageBox.Action.CANCEL],
+				emphasizedAction: MessageBox.Action.OK,
+				onClose: function (sAction) {
+					if (sAction === MessageBox.Action.OK) {
+						that._doDeployImmediately(oIntegration, sName);
+					}
+				}
+			});
+		},
+
+		_doDeployImmediately: function (oIntegration, sName) {
+			var that = this;
+			this.getModel("detailView").setProperty("/busy", true);
+			MessageToast.show(this.getText("deployImmediatelyStarted", [sName]));
+			BackendClient.triggerImmediateRun(oIntegration).then(function () {
+				that.getModel("detailView").setProperty("/busy", false);
+				MessageBox.success(that.getText("deployImmediatelySuccess", [sName]));
+			}).catch(function (oErr) {
+				that.getModel("detailView").setProperty("/busy", false);
+				MessageBox.error(that.getText("deployImmediatelyError", [oErr.message]));
 			});
 		},
 

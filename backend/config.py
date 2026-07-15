@@ -42,6 +42,12 @@ class Settings:
     # https://<tenant>.it-cpi0xx.cfapps.<region>.hana.ondemand.com/api/v1
     is_api_base: str = field(default_factory=lambda: os.getenv("INTEGRATION_PULSE_IS_API_BASE", ""))
 
+    # Optional base URL for HTTPS sender endpoints. If omitted, the proxy derives
+    # the tenant root from is_api_base by removing the trailing /api/v1.
+    immediate_run_base: str = field(
+        default_factory=lambda: os.getenv("INTEGRATION_PULSE_IMMEDIATE_RUN_BASE", "")
+    )
+
     # OAuth2 client-credentials (XSUAA service key of the IS API plan)
     oauth_token_url: str = field(default_factory=lambda: os.getenv("INTEGRATION_PULSE_OAUTH_TOKEN_URL", ""))
     client_id: str = field(default_factory=lambda: os.getenv("INTEGRATION_PULSE_CLIENT_ID", ""))

@@ -22,6 +22,7 @@ class Integration(BaseModel):
     isRuntimeArtifact: bool = True
     sender: str = ""
     receiver: str = ""
+    endpoint: str = ""
 
 
 class Configuration(BaseModel):
@@ -50,6 +51,16 @@ class DeployResponse(BaseModel):
     id: str
     status: str
     taskId: Optional[str] = None
+
+
+class ImmediateRunRequest(BaseModel):
+    endpoint: Optional[str] = None
+
+
+class ImmediateRunResponse(BaseModel):
+    id: str
+    status: str = "TRIGGERED"
+    message: str = ""
 
 
 class MonitoringItem(BaseModel):

@@ -297,6 +297,11 @@
 				<Button text="{i18n>reset}" type="Transparent" enabled="{detailView>/dirty}" press=".onReset"/>
 				<Button text="{i18n>save}" type="Default" enabled="{detailView>/dirty}" press=".onSaveDraft"/>
 				<Button
+					text="{i18n>deployImmediately}"
+					type="Default"
+					icon="sap-icon://media-play"
+					press=".onDeployImmediately"/>
+				<Button
 					text="{i18n>deploy}"
 					type="Emphasized"
 					icon="sap-icon://upload-to-cloud"

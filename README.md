@@ -91,12 +91,20 @@ branch and a `live` branch; the live branches are marked `>>> PLACEHOLDER <<<`.
 | Get parameters | `get_configurations` | `GET /IntegrationDesigntimeArtifacts(Id='..',Version='..')/Configurations` |
 | Save parameters | `update_configurations` | `PUT .../$links/Configurations('key')` |
 | Deploy | `deploy_integration` | `POST /DeployIntegrationDesigntimeArtifact` |
+| Deploy Immediately | `trigger_immediate_run` | `POST <tenant runtime root>/<HTTPS sender endpoint>` |
 | Runtime status | `list_monitoring` | `GET /IntegrationRuntimeArtifacts` |
 | Message logs | `get_message_logs` | `GET /MessageProcessingLogs?$filter=…` |
 | OAuth token | `auth.get_access_token` | `POST {oauth_token_url}` (client-credentials) |
 
 The frontend never changes when you go live — it only talks to the proxy via
 `webapp/service/BackendClient.js`.
+
+`Deploy Immediately` is intentionally separate from redeploying the artifact. It
+calls the selected integration's HTTPS sender endpoint, such as `/http/...`, so
+the timer parameter stays unchanged. In destination mode, route `/http` to the
+same Integration Suite destination. In proxy mode, the backend derives the tenant
+runtime root from `INTEGRATION_PULSE_IS_API_BASE`, or you can set
+`INTEGRATION_PULSE_IMMEDIATE_RUN_BASE` explicitly.
 
 ---
 
