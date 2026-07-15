@@ -54,4 +54,9 @@ async def deploy_integration(integration_id: str, body: ConfigurationUpdateReque
 
 @router.post("/{integration_id}/trigger", response_model=ImmediateRunResponse)
 async def trigger_immediate_run(integration_id: str, body: ImmediateRunRequest):
-    return await btp_client.trigger_immediate_run(integration_id, body.endpoint)
+    return await btp_client.trigger_immediate_run(
+        integration_id,
+        body.endpoint,
+        select_query=body.selectQuery,
+        expand_query=body.expandQuery,
+    )

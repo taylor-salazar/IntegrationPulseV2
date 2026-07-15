@@ -106,6 +106,14 @@ same Integration Suite destination. In proxy mode, the backend derives the tenan
 runtime root from `INTEGRATION_PULSE_IS_API_BASE`, or you can set
 `INTEGRATION_PULSE_IMMEDIATE_RUN_BASE` explicitly.
 
+If an integration defines standardized parameters named `pulse.selectQuery` and
+`pulse.expandQuery`, the immediate-run button opens a one-run selection dialog.
+The selected SuccessFactors query parts are sent to CPI as request headers:
+`pulse.selectQuery`, `pulse.expandQuery`, `X-Pulse-Select-Query`, and
+`X-Pulse-Expand-Query`. The iFlow should read those headers for the immediate
+run only and fall back to the saved externalized parameters when the headers are
+blank.
+
 ---
 
 ## Payload storage

@@ -466,17 +466,27 @@ sap.ui.define([
 	}
 
 	function triggerDestinationIntegration(oIntegration) {
+		var oRunOptions = arguments.length > 1 && arguments[1] ? arguments[1] : {};
 		var sEndpoint = oIntegration && oIntegration.endpoint;
 		var sUrl = getImmediateRunUrl(sEndpoint);
+		var mHeaders = {
+			"Accept": "application/json",
+			"Content-Type": "application/json"
+		};
 		if (!sUrl) {
 			return Promise.reject(new Error("No HTTPS sender endpoint is available for this integration."));
 		}
+		if (oRunOptions.selectQuery) {
+			mHeaders["pulse.selectQuery"] = oRunOptions.selectQuery;
+			mHeaders["X-Pulse-Select-Query"] = oRunOptions.selectQuery;
+		}
+		if (oRunOptions.expandQuery) {
+			mHeaders["pulse.expandQuery"] = oRunOptions.expandQuery;
+			mHeaders["X-Pulse-Expand-Query"] = oRunOptions.expandQuery;
+		}
 		return fetch(sUrl, {
 			method: "POST",
-			headers: {
-				"Accept": "application/json",
-				"Content-Type": "application/json"
-			},
+			headers: mHeaders,
 			credentials: "include",
 			body: "{}"
 		}).then(function (res) {
@@ -632,21 +642,21 @@ sap.ui.define([
 		 * Trigger the separate HTTPS sender endpoint for an immediate run.
 		 * This intentionally does not update timer parameters or redeploy the artifact.
 		 */
-		triggerImmediateRun: function (oIntegration) {
+		triggerImmediateRun: function (oIntegration, oRunOptions) {
 			var sId = (oIntegration && oIntegration.id) || String(oIntegration || "");
 			if (USE_MOCK) {
-				Log.info("[mock] trigger immediate run " + sId);
+				Log.info("[mock] trigger immediate run " + sId, JSON.stringify(oRunOptions || {}));
 				return delay(700).then(function () {
 					return { id: sId, status: "TRIGGERED", message: "Mock immediate run started." };
 				});
 			}
 			if (LIVE_MODE === "destination") {
-				return triggerDestinationIntegration(oIntegration || { id: sId });
+				return triggerDestinationIntegration(oIntegration || { id: sId }, oRunOptions || {});
 			}
 			return sendJSON(
 				config.backendBaseUrl + "/api/integrations/" + encodeURIComponent(sId) + "/trigger",
 				"POST",
-				{ endpoint: oIntegration && oIntegration.endpoint }
+				Object.assign({ endpoint: oIntegration && oIntegration.endpoint }, oRunOptions || {})
 			);
 		},
 

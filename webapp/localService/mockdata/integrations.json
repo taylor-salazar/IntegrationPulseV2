@@ -9,6 +9,7 @@
 			"status": "STARTED",
 			"sender": "SAPSuccessFactors",
 			"receiver": "UKG",
+			"endpoint": "/http/IntegrationPulse/SuccessFactorsEC_To_OtherFile_EmpJobCSV_FullMode",
 			"description": "Daily delta extract of Employee Central worker master data delivered to the vendor SFTP as a pipe-delimited file.",
 			"parameterCount": 11,
 			"lastDeployed": "2026-06-11T22:14:00Z"

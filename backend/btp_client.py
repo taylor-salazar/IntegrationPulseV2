@@ -246,7 +246,10 @@ def _join_runtime_endpoint(endpoint: str) -> str:
 
 
 async def trigger_immediate_run(
-    integration_id: str, endpoint: str | None = None
+    integration_id: str,
+    endpoint: str | None = None,
+    select_query: str = "",
+    expand_query: str = "",
 ) -> ImmediateRunResponse:
     # This calls the separate HTTPS sender endpoint for the iFlow. It does not
     # update configurations, redeploy the artifact, or modify timer parameters.
@@ -265,14 +268,21 @@ async def trigger_immediate_run(
         raise RuntimeError("No HTTPS sender endpoint is available for this integration.")
 
     token = await get_access_token()
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+    }
+    if select_query:
+        headers["pulse.selectQuery"] = select_query
+        headers["X-Pulse-Select-Query"] = select_query
+    if expand_query:
+        headers["pulse.expandQuery"] = expand_query
+        headers["X-Pulse-Expand-Query"] = expand_query
     async with httpx.AsyncClient(timeout=120) as client:
         resp = await client.post(
             _join_runtime_endpoint(resolved_endpoint),
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-            },
+            headers=headers,
             content="{}",
         )
         resp.raise_for_status()

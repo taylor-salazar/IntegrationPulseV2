@@ -3,9 +3,32 @@ sap.ui.define([
 	"sap/ui/model/json/JSONModel",
 	"integrationpulse/service/BackendClient",
 	"sap/ui/core/Fragment",
+	"sap/ui/core/Item",
+	"sap/m/Button",
+	"sap/m/Dialog",
+	"sap/m/Label",
 	"sap/m/MessageToast",
-	"sap/m/MessageBox"
-], function (BaseController, JSONModel, BackendClient, Fragment, MessageToast, MessageBox) {
+	"sap/m/MessageBox",
+	"sap/m/MultiComboBox",
+	"sap/m/Text",
+	"sap/m/TextArea",
+	"sap/m/VBox"
+], function (
+	BaseController,
+	JSONModel,
+	BackendClient,
+	Fragment,
+	Item,
+	Button,
+	Dialog,
+	Label,
+	MessageToast,
+	MessageBox,
+	MultiComboBox,
+	Text,
+	TextArea,
+	VBox
+) {
 	"use strict";
 
 	// Integration Detail controller: lets a user inspect one deployed
@@ -15,6 +38,7 @@ sap.ui.define([
 
 	// Human labels for the enterprise parameter group prefixes.
 	var GROUP_LABELS = {
+		pulse: "Pulse",
 		extract: "Extract",
 		filter: "Filter",
 		include: "Include",
@@ -75,6 +99,45 @@ sap.ui.define([
 		{ key: "FRI", text: "Friday" },
 		{ key: "SAT", text: "Saturday" },
 		{ key: "SUN", text: "Sunday" }
+	];
+
+	var SF_SELECT_FIELDS = [
+		{ key: "userId", text: "Employee ID" },
+		{ key: "personIdExternal", text: "Person ID" },
+		{ key: "firstName", text: "First name" },
+		{ key: "lastName", text: "Last name" },
+		{ key: "displayName", text: "Display name" },
+		{ key: "email", text: "Email" },
+		{ key: "company", text: "Company" },
+		{ key: "businessUnit", text: "Business unit" },
+		{ key: "division", text: "Division" },
+		{ key: "department", text: "Department" },
+		{ key: "location", text: "Location" },
+		{ key: "jobCode", text: "Job code" },
+		{ key: "jobTitle", text: "Job title" },
+		{ key: "managerId", text: "Manager ID" },
+		{ key: "emplStatus", text: "Employment status" },
+		{ key: "employeeClass", text: "Employee class" },
+		{ key: "employmentType", text: "Employment type" },
+		{ key: "payGrade", text: "Pay grade" },
+		{ key: "event", text: "Event" },
+		{ key: "eventReason", text: "Event reason" },
+		{ key: "startDate", text: "Start date" },
+		{ key: "endDate", text: "End date" },
+		{ key: "lastModifiedDateTime", text: "Last modified date/time" }
+	];
+
+	var SF_EXPAND_FIELDS = [
+		{ key: "employmentNav", text: "Employment details" },
+		{ key: "personNav", text: "Person details" },
+		{ key: "userNav", text: "User account" },
+		{ key: "jobInfoNav", text: "Job information" },
+		{ key: "compInfoNav", text: "Compensation information" },
+		{ key: "payComponentRecurringNav", text: "Recurring pay components" },
+		{ key: "emailNav", text: "Email addresses" },
+		{ key: "phoneNav", text: "Phone numbers" },
+		{ key: "nationalIdNav", text: "National IDs" },
+		{ key: "addressNavDEFLT", text: "Home address" }
 	];
 
 	return BaseController.extend("integrationpulse.controller.IntegrationDetail", {
@@ -155,7 +218,7 @@ sap.ui.define([
 				});
 			}.bind(this));
 			// Stable, business-friendly order.
-			var aOrder = ["extract", "filter", "include", "delivery", "audit", "sftp", "general"];
+			var aOrder = ["pulse", "extract", "filter", "include", "delivery", "audit", "sftp", "general"];
 			return Object.keys(mGroups).sort(function (a, b) {
 				var ia = aOrder.indexOf(a); var ib = aOrder.indexOf(b);
 				return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
@@ -174,6 +237,144 @@ sap.ui.define([
 				});
 			});
 			return aOut;
+		},
+
+		_findParamValue: function (sKey) {
+			var oParam = this._findParam(sKey);
+			return oParam ? (oParam.value || oParam.defaultValue || "") : "";
+		},
+
+		_findParam: function (sKey) {
+			var sFound = "";
+			var oFound = null;
+			(this.getModel("parameters").getProperty("/groups") || []).some(function (oGroup) {
+				return oGroup.params.some(function (oParam) {
+					if (oParam.key === sKey) {
+						sFound = oParam;
+						oFound = oParam;
+						return true;
+					}
+					return false;
+				});
+			});
+			return oFound || sFound;
+		},
+
+		_hasPulseQueryParams: function () {
+			return !!(this._findParam("pulse.selectQuery") || this._findParam("pulse.expandQuery"));
+		},
+
+		_splitQueryList: function (sValue) {
+			return String(sValue || "")
+				.replace(/^\s*\$?(select|expand)\s*=\s*/i, "")
+				.split(",")
+				.map(function (sItem) { return sItem.trim(); })
+				.filter(Boolean);
+		},
+
+		_joinQueryList: function (aValues) {
+			return (aValues || []).map(function (sValue) {
+				return String(sValue || "").trim();
+			}).filter(Boolean).join(",");
+		},
+
+		_getPulseRunOptionsFromDialog: function () {
+			return {
+				selectQuery: this._oPulseSelectTextArea ? this._oPulseSelectTextArea.getValue().trim() : "",
+				expandQuery: this._oPulseExpandTextArea ? this._oPulseExpandTextArea.getValue().trim() : ""
+			};
+		},
+
+		_syncPulseTextAreasFromPickers: function () {
+			if (this._oPulseSelectTextArea && this._oPulseSelectPicker) {
+				this._oPulseSelectTextArea.setValue(this._joinQueryList(this._oPulseSelectPicker.getSelectedKeys()));
+			}
+			if (this._oPulseExpandTextArea && this._oPulseExpandPicker) {
+				this._oPulseExpandTextArea.setValue(this._joinQueryList(this._oPulseExpandPicker.getSelectedKeys()));
+			}
+		},
+
+		_createPulseFieldPicker: function (aFields, aSelected, sPlaceholder) {
+			var oPicker = new MultiComboBox({
+				width: "100%",
+				placeholder: sPlaceholder,
+				selectedKeys: aSelected,
+				selectionFinish: this._syncPulseTextAreasFromPickers.bind(this)
+			});
+			aFields.forEach(function (oField) {
+				oPicker.addItem(new Item({ key: oField.key, text: oField.text + " (" + oField.key + ")" }));
+			});
+			return oPicker;
+		},
+
+		_openPulseRunDialog: function (oIntegration, sName) {
+			var aSelectDefaults = this._splitQueryList(this._findParamValue("pulse.selectQuery"));
+			var aExpandDefaults = this._splitQueryList(this._findParamValue("pulse.expandQuery"));
+			this._oPulseSelectPicker = this._createPulseFieldPicker(
+				SF_SELECT_FIELDS,
+				aSelectDefaults,
+				this.getText("pulseSelectPlaceholder")
+			);
+			this._oPulseExpandPicker = this._createPulseFieldPicker(
+				SF_EXPAND_FIELDS,
+				aExpandDefaults,
+				this.getText("pulseExpandPlaceholder")
+			);
+			this._oPulseSelectTextArea = new TextArea({
+				width: "100%",
+				rows: 3,
+				value: this._joinQueryList(aSelectDefaults),
+				placeholder: "userId,personIdExternal,firstName,lastName"
+			});
+			this._oPulseExpandTextArea = new TextArea({
+				width: "100%",
+				rows: 3,
+				value: this._joinQueryList(aExpandDefaults),
+				placeholder: "employmentNav,personNav,emailNav"
+			});
+
+			var oDialog = new Dialog({
+				title: this.getText("pulseRunDialogTitle"),
+				contentWidth: "46rem",
+				content: [
+					new VBox({
+						class: "sapUiMediumMargin",
+						items: [
+							new Text({ text: this.getText("pulseRunDialogIntro") }),
+							new Label({ text: this.getText("pulseSelectFields"), class: "sapUiSmallMarginTop" }),
+							this._oPulseSelectPicker,
+							new Label({ text: this.getText("pulseSelectAdvanced"), class: "sapUiSmallMarginTop" }),
+							this._oPulseSelectTextArea,
+							new Label({ text: this.getText("pulseExpandFields"), class: "sapUiSmallMarginTop" }),
+							this._oPulseExpandPicker,
+							new Label({ text: this.getText("pulseExpandAdvanced"), class: "sapUiSmallMarginTop" }),
+							this._oPulseExpandTextArea
+						]
+					})
+				],
+				beginButton: new Button({
+					text: this.getText("deployImmediately"),
+					type: "Emphasized",
+					press: function () {
+						var oRunOptions = this._getPulseRunOptionsFromDialog();
+						oDialog.close();
+						this._doDeployImmediately(oIntegration, sName, oRunOptions);
+					}.bind(this)
+				}),
+				endButton: new Button({
+					text: this.getText("cancel"),
+					press: function () { oDialog.close(); }
+				}),
+				afterClose: function () {
+					oDialog.destroy();
+					this._oPulseSelectPicker = null;
+					this._oPulseExpandPicker = null;
+					this._oPulseSelectTextArea = null;
+					this._oPulseExpandTextArea = null;
+				}.bind(this)
+			});
+			this.getView().addDependent(oDialog);
+			oDialog.open();
 		},
 
 		_recomputeDirty: function () {
@@ -448,6 +649,10 @@ sap.ui.define([
 			var that = this;
 			var oIntegration = this.getModel("integration").getData() || {};
 			var sName = oIntegration.name || oIntegration.id || this._sId;
+			if (this._hasPulseQueryParams()) {
+				this._openPulseRunDialog(oIntegration, sName);
+				return;
+			}
 			MessageBox.confirm(this.getText("deployImmediatelyConfirmText", [sName]), {
 				title: this.getText("deployImmediatelyConfirmTitle"),
 				icon: MessageBox.Icon.WARNING,
@@ -461,11 +666,11 @@ sap.ui.define([
 			});
 		},
 
-		_doDeployImmediately: function (oIntegration, sName) {
+		_doDeployImmediately: function (oIntegration, sName, oRunOptions) {
 			var that = this;
 			this.getModel("detailView").setProperty("/busy", true);
 			MessageToast.show(this.getText("deployImmediatelyStarted", [sName]));
-			BackendClient.triggerImmediateRun(oIntegration).then(function () {
+			BackendClient.triggerImmediateRun(oIntegration, oRunOptions).then(function () {
 				that.getModel("detailView").setProperty("/busy", false);
 				MessageBox.success(that.getText("deployImmediatelySuccess", [sName]));
 			}).catch(function (oErr) {

@@ -6,6 +6,8 @@
 		{ "key": "extract.pageSize", "label": "Page size", "value": "500", "defaultValue": "200", "dataType": "xsd:integer" },
 		{ "key": "filter.company", "label": "Company code", "value": "1000", "defaultValue": "", "dataType": "xsd:string" },
 		{ "key": "filter.effectiveDateFrom", "label": "Effective date from", "value": "2026-01-01", "defaultValue": "", "dataType": "xsd:date" },
+		{ "key": "pulse.selectQuery", "label": "One-run SuccessFactors select query", "value": "userId,personIdExternal,firstName,lastName,email,department,jobCode", "defaultValue": "", "dataType": "xsd:string" },
+		{ "key": "pulse.expandQuery", "label": "One-run SuccessFactors expand query", "value": "employmentNav,personNav,emailNav", "defaultValue": "", "dataType": "xsd:string" },
 		{ "key": "delivery.fileNamePattern", "label": "File name pattern", "value": "EMP_{yyyyMMdd}.csv", "defaultValue": "EMP_{yyyyMMdd}.csv", "dataType": "xsd:string" },
 		{ "key": "delivery.encoding", "label": "Encoding", "value": "UTF-8", "defaultValue": "UTF-8", "dataType": "xsd:string" },
 		{ "key": "sftp.host", "label": "SFTP host", "value": "sftp.vendor.example.com", "defaultValue": "", "dataType": "xsd:string" },
