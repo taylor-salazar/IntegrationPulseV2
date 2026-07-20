@@ -146,18 +146,13 @@ sap.ui.define([
 		{ key: "addressNavDEFLT", text: "Home address" }
 	];
 
-	function localName(oNode) {
-		return oNode && (oNode.localName || String(oNode.nodeName || "").split(":").pop());
-	}
-
 	function stripNamespace(sName) {
 		return String(sName || "").split(".").pop();
 	}
 
-	function forEachNode(oNodes, fnCallback) {
-		for (var i = 0; i < oNodes.length; i += 1) {
-			fnCallback(oNodes[i], i);
-		}
+	function xmlAttr(sTag, sName) {
+		var oMatch = new RegExp("\\b" + sName + "\\s*=\\s*(['\"])(.*?)\\1", "i").exec(sTag || "");
+		return oMatch ? oMatch[2] : "";
 	}
 
 	return BaseController.extend("integrationpulse.controller.IntegrationDetail", {
@@ -350,7 +345,7 @@ sap.ui.define([
 		},
 
 		_setPulsePickerItemsChunked: function (oPicker, aFields, aSelected, fnProgress) {
-			var aItems = aFields || [];
+			var aItems = (aFields || []).slice(0, 5000);
 			var iIndex = 0;
 			var iChunkSize = 300;
 			oPicker.removeAllItems();
@@ -387,51 +382,73 @@ sap.ui.define([
 		},
 
 		_parseEdmxMetadata: function (sXml) {
-			var oDoc = new DOMParser().parseFromString(sXml, "application/xml");
-			if (oDoc.getElementsByTagName("parsererror").length) {
+			if (!/<(?:\w+:)?Edmx\b|<(?:\w+:)?Schema\b/i.test(sXml || "")) {
 				throw new Error(this.getText("pulseEdmxInvalid"));
 			}
-			var oNodes = oDoc.getElementsByTagName("*");
 			var mEntitySets = {};
 			var mEntityTypes = {};
 			var mAssociations = {};
-			forEachNode(oNodes, function (oNode) {
-				var sLocalName = localName(oNode);
-				var sName = oNode.getAttribute("Name");
-				if (sLocalName === "EntitySet") {
-					mEntitySets[sName] = stripNamespace(oNode.getAttribute("EntityType"));
+
+			var oEntitySetMatch;
+			var rEntitySet = /<(?:\w+:)?EntitySet\b([^>]*)\/?>/gi;
+			while ((oEntitySetMatch = rEntitySet.exec(sXml))) {
+				var sEntitySetName = xmlAttr(oEntitySetMatch[1], "Name");
+				if (sEntitySetName) {
+					mEntitySets[sEntitySetName] = stripNamespace(xmlAttr(oEntitySetMatch[1], "EntityType"));
 				}
-				if (sLocalName === "Association") {
-					var mRoles = {};
-					forEachNode(oNode.childNodes, function (oChild) {
-						if (localName(oChild) === "End") {
-							mRoles[oChild.getAttribute("Role")] = stripNamespace(oChild.getAttribute("Type"));
-						}
-					});
-					mAssociations[sName] = mRoles;
+			}
+
+			var oAssociationMatch;
+			var rAssociation = /<(?:\w+:)?Association\b([^>]*)>([\s\S]*?)<\/(?:\w+:)?Association>/gi;
+			while ((oAssociationMatch = rAssociation.exec(sXml))) {
+				var sAssociationName = xmlAttr(oAssociationMatch[1], "Name");
+				var mRoles = {};
+				var oEndMatch;
+				var rEnd = /<(?:\w+:)?End\b([^>]*)\/?>/gi;
+				while ((oEndMatch = rEnd.exec(oAssociationMatch[2]))) {
+					var sRole = xmlAttr(oEndMatch[1], "Role");
+					if (sRole) {
+						mRoles[sRole] = stripNamespace(xmlAttr(oEndMatch[1], "Type"));
+					}
 				}
-			});
-			forEachNode(oNodes, function (oNode) {
-				var sLocalName = localName(oNode);
-				var sName = oNode.getAttribute("Name");
-				if (sLocalName === "EntityType") {
-					mEntityTypes[sName] = { properties: [], navs: [] };
-					forEachNode(oNode.childNodes, function (oChild) {
-						var sChildName = localName(oChild);
-						if (sChildName === "Property") {
-							mEntityTypes[sName].properties.push(oChild.getAttribute("Name"));
-						}
-						if (sChildName === "NavigationProperty") {
-							var sRelationship = stripNamespace(oChild.getAttribute("Relationship"));
-							var mAssociation = mAssociations[sRelationship] || {};
-							mEntityTypes[sName].navs.push({
-								name: oChild.getAttribute("Name"),
-								target: mAssociation[oChild.getAttribute("ToRole")] || ""
-							});
-						}
-					});
+				if (sAssociationName) {
+					mAssociations[sAssociationName] = mRoles;
 				}
-			});
+			}
+
+			var oEntityTypeMatch;
+			var rEntityType = /<(?:\w+:)?EntityType\b([^>]*)>([\s\S]*?)<\/(?:\w+:)?EntityType>/gi;
+			while ((oEntityTypeMatch = rEntityType.exec(sXml))) {
+				var sEntityName = xmlAttr(oEntityTypeMatch[1], "Name");
+				if (!sEntityName) {
+					continue;
+				}
+				var oEntity = { properties: [], navs: [] };
+				var sBody = oEntityTypeMatch[2];
+				var oPropertyMatch;
+				var rProperty = /<(?:\w+:)?Property\b([^>]*)\/?>/gi;
+				while ((oPropertyMatch = rProperty.exec(sBody))) {
+					var sPropertyName = xmlAttr(oPropertyMatch[1], "Name");
+					if (sPropertyName) {
+						oEntity.properties.push(sPropertyName);
+					}
+				}
+				var oNavMatch;
+				var rNav = /<(?:\w+:)?NavigationProperty\b([^>]*)\/?>/gi;
+				while ((oNavMatch = rNav.exec(sBody))) {
+					var sNavName = xmlAttr(oNavMatch[1], "Name");
+					var sRelationship = stripNamespace(xmlAttr(oNavMatch[1], "Relationship"));
+					var mAssociation = mAssociations[sRelationship] || {};
+					if (sNavName) {
+						oEntity.navs.push({
+							name: sNavName,
+							target: mAssociation[xmlAttr(oNavMatch[1], "ToRole")] || ""
+						});
+					}
+				}
+				mEntityTypes[sEntityName] = oEntity;
+			}
+
 			return { entitySets: mEntitySets, entityTypes: mEntityTypes };
 		},
 
