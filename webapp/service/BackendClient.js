@@ -467,7 +467,7 @@ sap.ui.define([
 
 	function triggerDestinationIntegration(oIntegration) {
 		var oRunOptions = arguments.length > 1 && arguments[1] ? arguments[1] : {};
-		var sEndpoint = oIntegration && oIntegration.endpoint;
+		var sEndpoint = oRunOptions.endpoint || (oIntegration && oIntegration.endpoint);
 		var sUrl = getImmediateRunUrl(sEndpoint);
 		var mHeaders = {
 			"Accept": "application/json",

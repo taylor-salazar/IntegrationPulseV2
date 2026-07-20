@@ -341,10 +341,15 @@ sap.ui.define([
 				"";
 		},
 
+		_getImmediateRunEndpoint: function () {
+			return this._findParamValue("pulse.immediateRunEndpoint");
+		},
+
 		_getPulseRunOptionsFromDialog: function () {
 			var sEntity = this._getSfResourcePath();
 			return {
 				entity: sEntity,
+				endpoint: this._getImmediateRunEndpoint(),
 				filterQuery: this._buildPulseGeneratedQuery()
 			};
 		},

@@ -115,6 +115,12 @@ that header is blank. The normal `Deploy` button does not set this header; it
 only saves/deploys the integration and lets the iFlow's own Groovy logic manage
 the query.
 
+For the HTTPS sender address, Pulse first uses the runtime artifact endpoint
+returned by Integration Suite. If the runtime API does not expose one, add an
+externalized parameter named `pulse.immediateRunEndpoint`, for example
+`/http/IntegrationPulse/IPEndpointTest`, and Pulse will use that value for
+`Deploy Immediately`.
+
 The immediate-run dialog can also upload a SuccessFactors EDMX metadata file
 downloaded from `/odata/v2/$metadata`. The upload is held in browser memory for
 parsing, then reduced to tenant-specific select/expand choices for the current
