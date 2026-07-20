@@ -149,7 +149,7 @@ sap.ui.define([
 		return oMatch ? oMatch[2] : "";
 	}
 
-	var EDMX_OPTIONS_CACHE_KEY = "integrationPulse.edmxOptions.v1";
+	var EDMX_OPTIONS_CACHE_KEY = "integrationPulse.edmxOptions.v2";
 	var mEdmxOptionsCache = {};
 
 	function loadEdmxOptionsCache() {
@@ -424,41 +424,7 @@ sap.ui.define([
 					};
 				}));
 			}
-			var mProperties = {};
-			var mNavs = {};
-			(oOptions && oOptions.selectFields || []).forEach(function (oField) {
-				var sKey = oField.key || "";
-				if (sPrefix && sKey.indexOf(sPrefix) !== 0) {
-					return;
-				}
-				var sRemainder = sPrefix ? sKey.slice(sPrefix.length) : sKey;
-				if (sRemainder && sRemainder.indexOf("/") === -1) {
-					mProperties[sRemainder] = {
-						path: sPrefix + sRemainder,
-						text: sRemainder,
-						nav: false
-					};
-				}
-			});
-			(oOptions && oOptions.expandFields || []).forEach(function (oField) {
-				var sKey = oField.key || "";
-				if (sPrefix && sKey.indexOf(sPrefix) !== 0) {
-					return;
-				}
-				var sRemainder = sPrefix ? sKey.slice(sPrefix.length) : sKey;
-				if (sRemainder && sRemainder.indexOf("/") === -1) {
-					mNavs[sRemainder] = {
-						path: sPrefix + sRemainder,
-						text: sRemainder,
-						nav: true
-					};
-				}
-			});
-			return Object.keys(mProperties).sort().map(function (sKey) {
-				return mProperties[sKey];
-			}).concat(Object.keys(mNavs).sort().map(function (sKey) {
-				return mNavs[sKey];
-			}));
+			return [];
 		},
 
 		_getPulseEntityForPath: function (oOptions, sBasePath) {
@@ -634,7 +600,7 @@ sap.ui.define([
 		_getCachedEdmxOptions: function (sResourcePath) {
 			var sCacheKey = this._getEdmxOptionsCacheKey(sResourcePath);
 			var oCached = sCacheKey && mEdmxOptionsCache[sCacheKey];
-			if (!oCached || (!oCached.entityTypes && (!Array.isArray(oCached.selectFields) || !Array.isArray(oCached.expandFields)))) {
+			if (!oCached || !oCached.entityTypes) {
 				return null;
 			}
 			return {
