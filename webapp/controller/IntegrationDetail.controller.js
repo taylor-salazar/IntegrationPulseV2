@@ -5,6 +5,7 @@ sap.ui.define([
 	"sap/ui/core/Fragment",
 	"sap/ui/core/Item",
 	"sap/m/Button",
+	"sap/m/CheckBox",
 	"sap/m/Dialog",
 	"sap/m/HBox",
 	"sap/m/Label",
@@ -23,6 +24,7 @@ sap.ui.define([
 	Fragment,
 	Item,
 	Button,
+	CheckBox,
 	Dialog,
 	HBox,
 	Label,
@@ -133,18 +135,10 @@ sap.ui.define([
 		{ key: "lastModifiedDateTime", text: "Last modified date/time" }
 	];
 
-	var SF_EXPAND_FIELDS = [
-		{ key: "employmentNav", text: "Employment details" },
-		{ key: "personNav", text: "Person details" },
-		{ key: "userNav", text: "User account" },
-		{ key: "jobInfoNav", text: "Job information" },
-		{ key: "compInfoNav", text: "Compensation information" },
-		{ key: "payComponentRecurringNav", text: "Recurring pay components" },
-		{ key: "emailNav", text: "Email addresses" },
-		{ key: "phoneNav", text: "Phone numbers" },
-		{ key: "nationalIdNav", text: "National IDs" },
-		{ key: "addressNavDEFLT", text: "Home address" }
-	];
+	var mCommonSelectFields = SF_SELECT_FIELDS.reduce(function (mFields, oField) {
+		mFields[oField.key] = true;
+		return mFields;
+	}, {});
 
 	function stripNamespace(sName) {
 		return String(sName || "").split(".").pop();
@@ -306,9 +300,16 @@ sap.ui.define([
 		},
 
 		_joinQueryList: function (aValues) {
+			var mSeen = {};
 			return (aValues || []).map(function (sValue) {
 				return String(sValue || "").trim();
-			}).filter(Boolean).join(",");
+			}).filter(function (sValue) {
+				if (!sValue || mSeen[sValue]) {
+					return false;
+				}
+				mSeen[sValue] = true;
+				return true;
+			}).join(",");
 		},
 
 		_getSfResourcePath: function () {
@@ -350,10 +351,12 @@ sap.ui.define([
 
 		_syncPulseTextAreasFromPickers: function () {
 			if (this._oPulseSelectTextArea && this._oPulseSelectPicker) {
-				this._oPulseSelectTextArea.setValue(this._joinQueryList(this._oPulseSelectPicker.getSelectedKeys()));
+				this._oPulseSelectTextArea.setValue(this._joinQueryList(
+					this._oPulseSelectPicker.getSelectedKeys().concat(Object.keys(this._mPulseAdvancedSelect || {}))
+				));
 			}
-			if (this._oPulseExpandTextArea && this._oPulseExpandPicker) {
-				this._oPulseExpandTextArea.setValue(this._joinQueryList(this._oPulseExpandPicker.getSelectedKeys()));
+			if (this._oPulseExpandTextArea) {
+				this._oPulseExpandTextArea.setValue(this._joinQueryList(Object.keys(this._mPulseAdvancedExpand || {})));
 			}
 			this._refreshPulseDebugQuery();
 		},
@@ -366,32 +369,6 @@ sap.ui.define([
 			oPicker.setSelectedKeys(aSelected || []);
 		},
 
-		_setPulsePickerItemsChunked: function (oPicker, aFields, aSelected, fnProgress) {
-			var aItems = (aFields || []).slice(0, 5000);
-			var iIndex = 0;
-			var iChunkSize = 300;
-			oPicker.removeAllItems();
-			return new Promise(function (resolve) {
-				var fnAddChunk = function () {
-					var iEnd = Math.min(iIndex + iChunkSize, aItems.length);
-					for (; iIndex < iEnd; iIndex += 1) {
-						var oField = aItems[iIndex];
-						oPicker.addItem(new Item({ key: oField.key, text: oField.text + " (" + oField.key + ")" }));
-					}
-					if (fnProgress) {
-						fnProgress(aItems.length ? iIndex / aItems.length : 1);
-					}
-					if (iIndex < aItems.length) {
-						setTimeout(fnAddChunk, 0);
-						return;
-					}
-					oPicker.setSelectedKeys(aSelected || []);
-					resolve();
-				};
-				fnAddChunk();
-			});
-		},
-
 		_createPulseFieldPicker: function (aFields, aSelected, sPlaceholder) {
 			var oPicker = new MultiComboBox({
 				width: "100%",
@@ -401,6 +378,182 @@ sap.ui.define([
 			});
 			this._setPulsePickerItems(oPicker, aFields, aSelected);
 			return oPicker;
+		},
+
+		_isCommonSelectField: function (sPath) {
+			return !String(sPath || "").includes("/") && !!mCommonSelectFields[sPath];
+		},
+
+		_seedPulseAdvancedSelections: function (aSelectDefaults, aExpandDefaults) {
+			this._mPulseAdvancedSelect = {};
+			this._mPulseAdvancedExpand = {};
+			(aSelectDefaults || []).forEach(function (sPath) {
+				if (!this._isCommonSelectField(sPath)) {
+					this._mPulseAdvancedSelect[sPath] = true;
+				}
+			}.bind(this));
+			(aExpandDefaults || []).forEach(function (sPath) {
+				if (sPath) {
+					this._mPulseAdvancedExpand[sPath] = true;
+				}
+			}.bind(this));
+		},
+
+		_getPulseImmediateChildren: function (sBasePath) {
+			var oOptions = this._oPulseEdmxOptions;
+			var sPrefix = sBasePath ? sBasePath + "/" : "";
+			if (oOptions && oOptions.entityTypes) {
+				var sEntity = this._getPulseEntityForPath(oOptions, sBasePath);
+				var oEntity = sEntity && oOptions.entityTypes[sEntity];
+				if (!oEntity) {
+					return [];
+				}
+				return (oEntity.properties || []).slice().sort().map(function (sProperty) {
+					return {
+						path: sPrefix + sProperty,
+						text: sProperty,
+						nav: false
+					};
+				}).concat((oEntity.navs || []).slice().sort(function (a, b) {
+					return a.name.localeCompare(b.name);
+				}).map(function (oNav) {
+					return {
+						path: sPrefix + oNav.name,
+						text: oNav.name,
+						nav: true
+					};
+				}));
+			}
+			var mProperties = {};
+			var mNavs = {};
+			(oOptions && oOptions.selectFields || []).forEach(function (oField) {
+				var sKey = oField.key || "";
+				if (sPrefix && sKey.indexOf(sPrefix) !== 0) {
+					return;
+				}
+				var sRemainder = sPrefix ? sKey.slice(sPrefix.length) : sKey;
+				if (sRemainder && sRemainder.indexOf("/") === -1) {
+					mProperties[sRemainder] = {
+						path: sPrefix + sRemainder,
+						text: sRemainder,
+						nav: false
+					};
+				}
+			});
+			(oOptions && oOptions.expandFields || []).forEach(function (oField) {
+				var sKey = oField.key || "";
+				if (sPrefix && sKey.indexOf(sPrefix) !== 0) {
+					return;
+				}
+				var sRemainder = sPrefix ? sKey.slice(sPrefix.length) : sKey;
+				if (sRemainder && sRemainder.indexOf("/") === -1) {
+					mNavs[sRemainder] = {
+						path: sPrefix + sRemainder,
+						text: sRemainder,
+						nav: true
+					};
+				}
+			});
+			return Object.keys(mProperties).sort().map(function (sKey) {
+				return mProperties[sKey];
+			}).concat(Object.keys(mNavs).sort().map(function (sKey) {
+				return mNavs[sKey];
+			}));
+		},
+
+		_getPulseEntityForPath: function (oOptions, sBasePath) {
+			var sEntity = oOptions.rootEntity;
+			String(sBasePath || "").split("/").filter(Boolean).some(function (sNavName) {
+				var oEntity = oOptions.entityTypes && oOptions.entityTypes[sEntity];
+				var oNav = (oEntity && oEntity.navs || []).filter(function (oItem) {
+					return oItem.name === sNavName;
+				})[0];
+				if (!oNav || !oNav.target) {
+					sEntity = "";
+					return true;
+				}
+				sEntity = oNav.target;
+				return false;
+			});
+			return sEntity;
+		},
+
+		_setPulseAdvancedSelection: function (sPath, bNav, bSelected) {
+			var mSelection = bNav ? this._mPulseAdvancedExpand : this._mPulseAdvancedSelect;
+			if (bSelected) {
+				mSelection[sPath] = true;
+			} else {
+				delete mSelection[sPath];
+			}
+			this._syncPulseTextAreasFromPickers();
+		},
+
+		_createPulseAdvancedRow: function (oNode, iLevel) {
+			var oChildren = new VBox({ visible: false }).addStyleClass("ipPulseAdvancedChildren");
+			var oToggle = new Button({
+				icon: oNode.nav ? "sap-icon://navigation-right-arrow" : "",
+				type: "Transparent",
+				enabled: oNode.nav,
+				width: "2rem"
+			}).addStyleClass("ipPulseTreeToggle");
+			var oCheckbox = new CheckBox({
+				selected: oNode.nav ? !!this._mPulseAdvancedExpand[oNode.path] : !!this._mPulseAdvancedSelect[oNode.path],
+				select: function (oEvent) {
+					this._setPulseAdvancedSelection(oNode.path, oNode.nav, oEvent.getParameter("selected"));
+				}.bind(this)
+			});
+			var oLabel = new Text({ text: oNode.text }).addStyleClass(oNode.nav ? "ipPulseAdvancedNavText" : "ipPulseAdvancedFieldText");
+			var oRow = new HBox({
+				alignItems: "Center",
+				items: [
+					oToggle,
+					oCheckbox,
+					oLabel
+				]
+			}).addStyleClass("ipPulseAdvancedRow");
+			oRow.addStyleClass("ipPulseAdvancedLevel" + Math.min(iLevel, 5));
+			if (oNode.nav) {
+				var bLoaded = false;
+				var fnToggle = function () {
+					var bExpand = !oChildren.getVisible();
+					if (bExpand && !bLoaded) {
+						this._renderPulseAdvancedLevel(oChildren, oNode.path, iLevel + 1);
+						bLoaded = true;
+					}
+					oChildren.setVisible(bExpand);
+					oToggle.setIcon(bExpand ? "sap-icon://navigation-down-arrow" : "sap-icon://navigation-right-arrow");
+				}.bind(this);
+				oToggle.attachPress(fnToggle);
+				oRow.addEventDelegate({
+					onclick: function (oEvent) {
+						var oTarget = oEvent.target;
+						if (!oTarget.closest || (!oTarget.closest(".sapMCb") && !oTarget.closest(".sapMBtn"))) {
+							fnToggle();
+						}
+					}
+				});
+			}
+			return new VBox({ items: [oRow, oChildren] });
+		},
+
+		_renderPulseAdvancedLevel: function (oContainer, sBasePath, iLevel) {
+			oContainer.removeAllItems();
+			this._getPulseImmediateChildren(sBasePath).forEach(function (oNode) {
+				oContainer.addItem(this._createPulseAdvancedRow(oNode, iLevel || 0));
+			}.bind(this));
+		},
+
+		_renderPulseAdvancedTree: function () {
+			if (!this._oPulseAdvancedTree) {
+				return;
+			}
+			if (!this._oPulseEdmxOptions) {
+				this._oPulseAdvancedTree.removeAllItems();
+				this._oPulseAdvancedTree.addItem(new Text({ text: this.getText("pulseAdvancedNeedsMetadata") }));
+				return;
+			}
+			this._renderPulseAdvancedLevel(this._oPulseAdvancedTree, "", 0);
+			this._syncPulseTextAreasFromPickers();
 		},
 
 		_parseEdmxMetadata: function (sXml) {
@@ -481,13 +634,14 @@ sap.ui.define([
 		_getCachedEdmxOptions: function (sResourcePath) {
 			var sCacheKey = this._getEdmxOptionsCacheKey(sResourcePath);
 			var oCached = sCacheKey && mEdmxOptionsCache[sCacheKey];
-			if (!oCached || !Array.isArray(oCached.selectFields) || !Array.isArray(oCached.expandFields)) {
+			if (!oCached || (!oCached.entityTypes && (!Array.isArray(oCached.selectFields) || !Array.isArray(oCached.expandFields)))) {
 				return null;
 			}
 			return {
 				rootEntity: oCached.rootEntity,
-				selectFields: oCached.selectFields,
-				expandFields: oCached.expandFields,
+				entityTypes: oCached.entityTypes,
+				selectFields: oCached.selectFields || [],
+				expandFields: oCached.expandFields || [],
 				truncated: !!oCached.truncated,
 				cachedAt: oCached.cachedAt
 			};
@@ -500,6 +654,7 @@ sap.ui.define([
 			}
 			mEdmxOptionsCache[sCacheKey] = {
 				rootEntity: oOptions.rootEntity,
+				entityTypes: oOptions.entityTypes,
 				selectFields: (oOptions.selectFields || []).slice(0, 5000),
 				expandFields: (oOptions.expandFields || []).slice(0, 5000),
 				truncated: !!oOptions.truncated,
@@ -510,21 +665,9 @@ sap.ui.define([
 
 		_applyEdmxOptionsToDialog: function (oOptions, mSettings) {
 			var mOptions = mSettings || {};
-			var fnSelectProgress = mOptions.selectProgress;
-			var fnExpandProgress = mOptions.expandProgress;
-			return this._setPulsePickerItemsChunked(
-				this._oPulseSelectPicker,
-				oOptions.selectFields,
-				this._splitQueryList(this._oPulseSelectTextArea.getValue()),
-				fnSelectProgress
-			).then(function () {
-				return this._setPulsePickerItemsChunked(
-					this._oPulseExpandPicker,
-					oOptions.expandFields,
-					this._splitQueryList(this._oPulseExpandTextArea.getValue()),
-					fnExpandProgress
-				);
-			}.bind(this)).then(function () {
+			this._oPulseEdmxOptions = oOptions;
+			this._renderPulseAdvancedTree();
+			return Promise.resolve().then(function () {
 				if (this._oPulseEdmxStatus && mOptions.statusText) {
 					this._oPulseEdmxStatus.setText(mOptions.statusText);
 				}
@@ -532,62 +675,22 @@ sap.ui.define([
 			}.bind(this));
 		},
 
-		_buildEdmxQueryOptions: function (oMetadata, sResourcePath, iMaxDepth) {
+		_buildEdmxQueryOptions: function (oMetadata, sResourcePath) {
 			var sRootEntity = (oMetadata.entitySets && oMetadata.entitySets[sResourcePath]) || sResourcePath;
 			if (!sRootEntity || !oMetadata.entityTypes[sRootEntity]) {
 				throw new Error(this.getText("pulseEdmxEntityNotFound", [sResourcePath || "SFResourcePath"]));
 			}
-			var iMaxSelectFields = 5000;
-			var iMaxExpandFields = 5000;
-			var iMaxVisitedNodes = 2500;
-			var iVisitedNodes = 0;
-			var aSelect = [];
-			var aExpand = [];
-			var mSelectSeen = {};
-			var mExpandSeen = {};
-			var fnAddSelect = function (sPath) {
-				if (aSelect.length < iMaxSelectFields && !mSelectSeen[sPath]) {
-					mSelectSeen[sPath] = true;
-					aSelect.push({ key: sPath, text: sPath });
-				}
-			};
-			var fnAddExpand = function (sPath) {
-				if (aExpand.length < iMaxExpandFields && !mExpandSeen[sPath]) {
-					mExpandSeen[sPath] = true;
-					aExpand.push({ key: sPath, text: sPath });
-				}
-			};
-			var fnWalk = function (sEntity, sPrefix, iDepth, aTrail) {
-				var oEntity = oMetadata.entityTypes[sEntity];
-				if (!oEntity || iDepth > iMaxDepth || iVisitedNodes >= iMaxVisitedNodes) {
-					return;
-				}
-				iVisitedNodes += 1;
-				(oEntity.properties || []).forEach(function (sProperty) {
-					fnAddSelect(sPrefix + sProperty);
-				});
-				if (iDepth === iMaxDepth || aExpand.length >= iMaxExpandFields) {
-					return;
-				}
-				(oEntity.navs || []).forEach(function (oNav) {
-					if (!oNav.name || !oNav.target || iVisitedNodes >= iMaxVisitedNodes) {
-						return;
-					}
-					var sNavPath = sPrefix + oNav.name;
-					fnAddExpand(sNavPath);
-					if (aTrail.indexOf(oNav.target + ":" + sNavPath) === -1) {
-						fnWalk(oNav.target, sNavPath + "/", iDepth + 1, aTrail.concat([oNav.target + ":" + sNavPath]));
-					}
-				});
-			};
-			fnWalk(sRootEntity, "", 0, [sRootEntity]);
+			var oRootEntity = oMetadata.entityTypes[sRootEntity] || {};
 			return {
 				rootEntity: sRootEntity,
-				selectFields: aSelect,
-				expandFields: aExpand,
-				truncated: iVisitedNodes >= iMaxVisitedNodes ||
-					aSelect.length >= iMaxSelectFields ||
-					aExpand.length >= iMaxExpandFields
+				entityTypes: oMetadata.entityTypes,
+				selectFields: (oRootEntity.properties || []).map(function (sProperty) {
+					return { key: sProperty, text: sProperty };
+				}),
+				expandFields: (oRootEntity.navs || []).map(function (oNav) {
+					return { key: oNav.name, text: oNav.name };
+				}),
+				truncated: false
 			};
 		},
 
@@ -663,7 +766,7 @@ sap.ui.define([
 						}
 						var oMetadata = this._parseEdmxMetadata(oEvent.target.result);
 						this._updateEdmxProgress(86, this.getText("pulseEdmxProgressBuilding"));
-						var oOptions = this._buildEdmxQueryOptions(oMetadata, sResourcePath, 5);
+						var oOptions = this._buildEdmxQueryOptions(oMetadata, sResourcePath);
 						this._storeEdmxOptions(sResourcePath, oOptions);
 						this._updateEdmxProgress(94, this.getText("pulseEdmxProgressPopulating"));
 						this._applyEdmxOptionsToDialog(oOptions, {
@@ -731,15 +834,11 @@ sap.ui.define([
 			var sResourcePath = this._getSfResourcePath();
 			var aSelectDefaults = this._splitQueryList(this._findParamValue("pulse.selectQuery"));
 			var aExpandDefaults = this._splitQueryList(this._findParamValue("pulse.expandQuery"));
+			this._seedPulseAdvancedSelections(aSelectDefaults, aExpandDefaults);
 			this._oPulseSelectPicker = this._createPulseFieldPicker(
 				SF_SELECT_FIELDS,
-				aSelectDefaults,
+				aSelectDefaults.filter(this._isCommonSelectField),
 				this.getText("pulseSelectPlaceholder")
-			);
-			this._oPulseExpandPicker = this._createPulseFieldPicker(
-				SF_EXPAND_FIELDS,
-				aExpandDefaults,
-				this.getText("pulseExpandPlaceholder")
 			);
 			this._oPulseSelectTextArea = new TextArea({
 				width: "100%",
@@ -780,6 +879,8 @@ sap.ui.define([
 					this._oPulseExpandTextArea
 				]
 			}).addStyleClass("ipPulseAdvancedBox");
+			this._oPulseAdvancedTree = new VBox().addStyleClass("ipPulseAdvancedTree");
+			this._renderPulseAdvancedTree();
 			this._oPulseDebugBox = new VBox({
 				visible: false,
 				items: [
@@ -814,27 +915,23 @@ sap.ui.define([
 			var oSelectGroup = new VBox({
 				items: [
 					new Label({ text: this.getText("pulseSelectFields") }).addStyleClass("ipPulseFieldLabel"),
-					this._oPulseSelectPicker,
+					this._oPulseSelectPicker
+				]
+			}).addStyleClass("ipPulseFieldGroup");
+
+			var oAdvancedGroup = new VBox({
+				items: [
+					new Label({ text: this.getText("pulseAdvancedFields") }).addStyleClass("ipPulseFieldLabel"),
+					new Text({ text: this.getText("pulseAdvancedFieldsIntro") }).addStyleClass("ipPulseAdvancedIntro"),
+					this._oPulseAdvancedTree,
 					new Link({
 						text: this.getText("pulseShowAdvancedQuery"),
 						press: function (oEvent) {
 							this._togglePulseAdvancedBox("select", oEvent.getSource());
-						}.bind(this)
-					}).addStyleClass("ipPulseAdvancedLink"),
-					this._oPulseSelectAdvancedBox
-				]
-			}).addStyleClass("ipPulseFieldGroup");
-
-			var oExpandGroup = new VBox({
-				items: [
-					new Label({ text: this.getText("pulseExpandFields") }).addStyleClass("ipPulseFieldLabel"),
-					this._oPulseExpandPicker,
-					new Link({
-						text: this.getText("pulseShowAdvancedQuery"),
-						press: function (oEvent) {
 							this._togglePulseAdvancedBox("expand", oEvent.getSource());
 						}.bind(this)
 					}).addStyleClass("ipPulseAdvancedLink"),
+					this._oPulseSelectAdvancedBox,
 					this._oPulseExpandAdvancedBox
 				]
 			}).addStyleClass("ipPulseFieldGroup");
@@ -848,7 +945,7 @@ sap.ui.define([
 							new Text({ text: this.getText("pulseRunDialogIntro") }).addStyleClass("ipPulseIntro"),
 							oEdmxTools,
 							oSelectGroup,
-							oExpandGroup,
+							oAdvancedGroup,
 							new Link({
 								text: this.getText("pulseShowGeneratedQuery"),
 								press: function (oEvent) {
@@ -875,11 +972,14 @@ sap.ui.define([
 				afterClose: function () {
 					oDialog.destroy();
 					this._oPulseSelectPicker = null;
-					this._oPulseExpandPicker = null;
 					this._oPulseSelectTextArea = null;
 					this._oPulseExpandTextArea = null;
 					this._oPulseSelectAdvancedBox = null;
 					this._oPulseExpandAdvancedBox = null;
+					this._oPulseAdvancedTree = null;
+					this._oPulseEdmxOptions = null;
+					this._mPulseAdvancedSelect = null;
+					this._mPulseAdvancedExpand = null;
 					this._oPulseDebugTextArea = null;
 					this._oPulseDebugBox = null;
 					this._oPulseEdmxStatus = null;

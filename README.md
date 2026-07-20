@@ -120,7 +120,9 @@ parsing, then reduced to tenant-specific select/expand choices for the current
 `SFResourcePath`, such as `EmpJob` or `EmpEmployment`, up to five navigation
 levels deep. The app caches only those reduced choices in the browser by
 `SFResourcePath`, not the raw EDMX, so the same SuccessFactors entity can be
-reused the next time the dialog opens.
+reused the next time the dialog opens. The advanced field selector renders the
+root entity first and only builds navigation children when a user expands that
+specific branch.
 
 ---
 
