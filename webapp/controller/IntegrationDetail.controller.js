@@ -260,10 +260,6 @@ sap.ui.define([
 			return oFound || sFound;
 		},
 
-		_hasPulseQueryParams: function () {
-			return !!(this._findParam("pulse.selectQuery") || this._findParam("pulse.expandQuery"));
-		},
-
 		_splitQueryList: function (sValue) {
 			return String(sValue || "")
 				.replace(/^\s*\$?(select|expand)\s*=\s*/i, "")
@@ -646,24 +642,9 @@ sap.ui.define([
 		},
 
 		onDeployImmediately: function () {
-			var that = this;
 			var oIntegration = this.getModel("integration").getData() || {};
 			var sName = oIntegration.name || oIntegration.id || this._sId;
-			if (this._hasPulseQueryParams()) {
-				this._openPulseRunDialog(oIntegration, sName);
-				return;
-			}
-			MessageBox.confirm(this.getText("deployImmediatelyConfirmText", [sName]), {
-				title: this.getText("deployImmediatelyConfirmTitle"),
-				icon: MessageBox.Icon.WARNING,
-				actions: [MessageBox.Action.OK, MessageBox.Action.CANCEL],
-				emphasizedAction: MessageBox.Action.OK,
-				onClose: function (sAction) {
-					if (sAction === MessageBox.Action.OK) {
-						that._doDeployImmediately(oIntegration, sName);
-					}
-				}
-			});
+			this._openPulseRunDialog(oIntegration, sName);
 		},
 
 		_doDeployImmediately: function (oIntegration, sName, oRunOptions) {
