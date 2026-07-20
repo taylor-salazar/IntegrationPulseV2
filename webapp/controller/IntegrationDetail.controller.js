@@ -457,35 +457,40 @@ sap.ui.define([
 			if (!sRootEntity || !oMetadata.entityTypes[sRootEntity]) {
 				throw new Error(this.getText("pulseEdmxEntityNotFound", [sResourcePath || "SFResourcePath"]));
 			}
+			var iMaxSelectFields = 5000;
+			var iMaxExpandFields = 5000;
+			var iMaxVisitedNodes = 2500;
+			var iVisitedNodes = 0;
 			var aSelect = [];
 			var aExpand = [];
 			var mSelectSeen = {};
 			var mExpandSeen = {};
 			var fnAddSelect = function (sPath) {
-				if (!mSelectSeen[sPath]) {
+				if (aSelect.length < iMaxSelectFields && !mSelectSeen[sPath]) {
 					mSelectSeen[sPath] = true;
 					aSelect.push({ key: sPath, text: sPath });
 				}
 			};
 			var fnAddExpand = function (sPath) {
-				if (!mExpandSeen[sPath]) {
+				if (aExpand.length < iMaxExpandFields && !mExpandSeen[sPath]) {
 					mExpandSeen[sPath] = true;
 					aExpand.push({ key: sPath, text: sPath });
 				}
 			};
 			var fnWalk = function (sEntity, sPrefix, iDepth, aTrail) {
 				var oEntity = oMetadata.entityTypes[sEntity];
-				if (!oEntity || iDepth > iMaxDepth) {
+				if (!oEntity || iDepth > iMaxDepth || iVisitedNodes >= iMaxVisitedNodes) {
 					return;
 				}
+				iVisitedNodes += 1;
 				(oEntity.properties || []).forEach(function (sProperty) {
 					fnAddSelect(sPrefix + sProperty);
 				});
-				if (iDepth === iMaxDepth) {
+				if (iDepth === iMaxDepth || aExpand.length >= iMaxExpandFields) {
 					return;
 				}
 				(oEntity.navs || []).forEach(function (oNav) {
-					if (!oNav.name || !oNav.target) {
+					if (!oNav.name || !oNav.target || iVisitedNodes >= iMaxVisitedNodes) {
 						return;
 					}
 					var sNavPath = sPrefix + oNav.name;
@@ -499,7 +504,10 @@ sap.ui.define([
 			return {
 				rootEntity: sRootEntity,
 				selectFields: aSelect,
-				expandFields: aExpand
+				expandFields: aExpand,
+				truncated: iVisitedNodes >= iMaxVisitedNodes ||
+					aSelect.length >= iMaxSelectFields ||
+					aExpand.length >= iMaxExpandFields
 			};
 		},
 
@@ -600,7 +608,7 @@ sap.ui.define([
 									oOptions.rootEntity,
 									oOptions.selectFields.length,
 									oOptions.expandFields.length
-								]));
+								]) + (oOptions.truncated ? " " + this.getText("pulseEdmxTruncated") : ""));
 							}
 							this._refreshPulseDebugQuery();
 							this._updateEdmxProgress(100, this.getText("pulseEdmxProgressComplete"));
