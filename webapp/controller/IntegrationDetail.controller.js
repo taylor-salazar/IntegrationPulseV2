@@ -12,6 +12,7 @@ sap.ui.define([
 	"sap/m/MessageToast",
 	"sap/m/MessageBox",
 	"sap/m/MultiComboBox",
+	"sap/m/ProgressIndicator",
 	"sap/m/Text",
 	"sap/m/TextArea",
 	"sap/m/VBox"
@@ -29,6 +30,7 @@ sap.ui.define([
 	MessageToast,
 	MessageBox,
 	MultiComboBox,
+	ProgressIndicator,
 	Text,
 	TextArea,
 	VBox
@@ -150,6 +152,12 @@ sap.ui.define([
 
 	function stripNamespace(sName) {
 		return String(sName || "").split(".").pop();
+	}
+
+	function forEachNode(oNodes, fnCallback) {
+		for (var i = 0; i < oNodes.length; i += 1) {
+			fnCallback(oNodes[i], i);
+		}
 	}
 
 	return BaseController.extend("integrationpulse.controller.IntegrationDetail", {
@@ -341,6 +349,32 @@ sap.ui.define([
 			oPicker.setSelectedKeys(aSelected || []);
 		},
 
+		_setPulsePickerItemsChunked: function (oPicker, aFields, aSelected, fnProgress) {
+			var aItems = aFields || [];
+			var iIndex = 0;
+			var iChunkSize = 300;
+			oPicker.removeAllItems();
+			return new Promise(function (resolve) {
+				var fnAddChunk = function () {
+					var iEnd = Math.min(iIndex + iChunkSize, aItems.length);
+					for (; iIndex < iEnd; iIndex += 1) {
+						var oField = aItems[iIndex];
+						oPicker.addItem(new Item({ key: oField.key, text: oField.text + " (" + oField.key + ")" }));
+					}
+					if (fnProgress) {
+						fnProgress(aItems.length ? iIndex / aItems.length : 1);
+					}
+					if (iIndex < aItems.length) {
+						setTimeout(fnAddChunk, 0);
+						return;
+					}
+					oPicker.setSelectedKeys(aSelected || []);
+					resolve();
+				};
+				fnAddChunk();
+			});
+		},
+
 		_createPulseFieldPicker: function (aFields, aSelected, sPlaceholder) {
 			var oPicker = new MultiComboBox({
 				width: "100%",
@@ -357,11 +391,11 @@ sap.ui.define([
 			if (oDoc.getElementsByTagName("parsererror").length) {
 				throw new Error(this.getText("pulseEdmxInvalid"));
 			}
-			var aNodes = Array.prototype.slice.call(oDoc.getElementsByTagName("*"));
+			var oNodes = oDoc.getElementsByTagName("*");
 			var mEntitySets = {};
 			var mEntityTypes = {};
 			var mAssociations = {};
-			aNodes.forEach(function (oNode) {
+			forEachNode(oNodes, function (oNode) {
 				var sLocalName = localName(oNode);
 				var sName = oNode.getAttribute("Name");
 				if (sLocalName === "EntitySet") {
@@ -369,7 +403,7 @@ sap.ui.define([
 				}
 				if (sLocalName === "Association") {
 					var mRoles = {};
-					Array.prototype.slice.call(oNode.childNodes).forEach(function (oChild) {
+					forEachNode(oNode.childNodes, function (oChild) {
 						if (localName(oChild) === "End") {
 							mRoles[oChild.getAttribute("Role")] = stripNamespace(oChild.getAttribute("Type"));
 						}
@@ -377,12 +411,12 @@ sap.ui.define([
 					mAssociations[sName] = mRoles;
 				}
 			});
-			aNodes.forEach(function (oNode) {
+			forEachNode(oNodes, function (oNode) {
 				var sLocalName = localName(oNode);
 				var sName = oNode.getAttribute("Name");
 				if (sLocalName === "EntityType") {
 					mEntityTypes[sName] = { properties: [], navs: [] };
-					Array.prototype.slice.call(oNode.childNodes).forEach(function (oChild) {
+					forEachNode(oNode.childNodes, function (oChild) {
 						var sChildName = localName(oChild);
 						if (sChildName === "Property") {
 							mEntityTypes[sName].properties.push(oChild.getAttribute("Name"));
@@ -452,6 +486,50 @@ sap.ui.define([
 			};
 		},
 
+		_openEdmxProgressDialog: function () {
+			this._oEdmxProgressIndicator = new ProgressIndicator({
+				width: "100%",
+				percentValue: 0,
+				displayValue: "0%"
+			});
+			this._oEdmxProgressText = new Text({ text: this.getText("pulseEdmxProgressStarting") });
+			this._oEdmxProgressDialog = new Dialog({
+				title: this.getText("pulseEdmxProgressTitle"),
+				contentWidth: "24rem",
+				content: [
+					new VBox({
+						items: [
+							this._oEdmxProgressText,
+							this._oEdmxProgressIndicator
+						]
+					}).addStyleClass("ipEdmxProgressContent")
+				]
+			});
+			this.getView().addDependent(this._oEdmxProgressDialog);
+			this._oEdmxProgressDialog.open();
+		},
+
+		_updateEdmxProgress: function (iPercent, sText) {
+			var iValue = Math.max(0, Math.min(100, Math.round(iPercent || 0)));
+			if (this._oEdmxProgressIndicator) {
+				this._oEdmxProgressIndicator.setPercentValue(iValue);
+				this._oEdmxProgressIndicator.setDisplayValue(iValue + "%");
+			}
+			if (this._oEdmxProgressText && sText) {
+				this._oEdmxProgressText.setText(sText);
+			}
+		},
+
+		_closeEdmxProgressDialog: function () {
+			if (this._oEdmxProgressDialog) {
+				this._oEdmxProgressDialog.close();
+				this._oEdmxProgressDialog.destroy();
+			}
+			this._oEdmxProgressDialog = null;
+			this._oEdmxProgressIndicator = null;
+			this._oEdmxProgressText = null;
+		},
+
 		_uploadPulseEdmx: function () {
 			var oInput = document.createElement("input");
 			oInput.type = "file";
@@ -461,37 +539,67 @@ sap.ui.define([
 				if (!oFile) {
 					return;
 				}
+				this._openEdmxProgressDialog();
 				var oReader = new FileReader();
+				oReader.onprogress = function (oEvent) {
+					if (oEvent.lengthComputable) {
+						this._updateEdmxProgress(
+							Math.min(70, (oEvent.loaded / oEvent.total) * 70),
+							this.getText("pulseEdmxProgressReading")
+						);
+					}
+				}.bind(this);
 				oReader.onload = function (oEvent) {
 					try {
+						this._updateEdmxProgress(72, this.getText("pulseEdmxProgressParsing"));
 						var sResourcePath = this._getSfResourcePath();
 						if (!sResourcePath) {
 							throw new Error(this.getText("pulseEdmxNoResourcePath"));
 						}
 						var oMetadata = this._parseEdmxMetadata(oEvent.target.result);
+						this._updateEdmxProgress(86, this.getText("pulseEdmxProgressBuilding"));
 						var oOptions = this._buildEdmxQueryOptions(oMetadata, sResourcePath, 5);
-						this._setPulsePickerItems(
+						this._updateEdmxProgress(94, this.getText("pulseEdmxProgressPopulating"));
+						this._setPulsePickerItemsChunked(
 							this._oPulseSelectPicker,
 							oOptions.selectFields,
-							this._splitQueryList(this._oPulseSelectTextArea.getValue())
-						);
-						this._setPulsePickerItems(
-							this._oPulseExpandPicker,
-							oOptions.expandFields,
-							this._splitQueryList(this._oPulseExpandTextArea.getValue())
-						);
-						if (this._oPulseEdmxStatus) {
-							this._oPulseEdmxStatus.setText(this.getText("pulseEdmxLoaded", [
-								oFile.name,
-								oOptions.rootEntity,
-								oOptions.selectFields.length,
-								oOptions.expandFields.length
-							]));
-						}
-						this._refreshPulseDebugQuery();
+							this._splitQueryList(this._oPulseSelectTextArea.getValue()),
+							function (nProgress) {
+								this._updateEdmxProgress(94 + (nProgress * 3), this.getText("pulseEdmxProgressPopulating"));
+							}.bind(this)
+						).then(function () {
+							return this._setPulsePickerItemsChunked(
+								this._oPulseExpandPicker,
+								oOptions.expandFields,
+								this._splitQueryList(this._oPulseExpandTextArea.getValue()),
+								function (nProgress) {
+									this._updateEdmxProgress(97 + (nProgress * 3), this.getText("pulseEdmxProgressPopulating"));
+								}.bind(this)
+							);
+						}.bind(this)).then(function () {
+							if (this._oPulseEdmxStatus) {
+								this._oPulseEdmxStatus.setText(this.getText("pulseEdmxLoaded", [
+									oFile.name,
+									oOptions.rootEntity,
+									oOptions.selectFields.length,
+									oOptions.expandFields.length
+								]));
+							}
+							this._refreshPulseDebugQuery();
+							this._updateEdmxProgress(100, this.getText("pulseEdmxProgressComplete"));
+							setTimeout(this._closeEdmxProgressDialog.bind(this), 250);
+						}.bind(this)).catch(function (oErr) {
+							this._closeEdmxProgressDialog();
+							MessageBox.error(this.getText("pulseEdmxLoadFailed", [oErr.message]));
+						}.bind(this));
 					} catch (oErr) {
+						this._closeEdmxProgressDialog();
 						MessageBox.error(this.getText("pulseEdmxLoadFailed", [oErr.message]));
 					}
+				}.bind(this);
+				oReader.onerror = function () {
+					this._closeEdmxProgressDialog();
+					MessageBox.error(this.getText("pulseEdmxLoadFailed", [this.getText("pulseEdmxReadFailed")]));
 				}.bind(this);
 				oReader.readAsText(oFile);
 			}.bind(this);
