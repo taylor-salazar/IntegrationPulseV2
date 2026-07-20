@@ -248,6 +248,7 @@ def _join_runtime_endpoint(endpoint: str) -> str:
 async def trigger_immediate_run(
     integration_id: str,
     endpoint: str | None = None,
+    entity: str = "",
     select_query: str = "",
     expand_query: str = "",
 ) -> ImmediateRunResponse:
@@ -273,6 +274,9 @@ async def trigger_immediate_run(
         "Accept": "application/json",
         "Content-Type": "application/json",
     }
+    if entity:
+        headers["pulse.entity"] = entity
+        headers["X-Pulse-Entity"] = entity
     if select_query:
         headers["pulse.selectQuery"] = select_query
         headers["X-Pulse-Select-Query"] = select_query

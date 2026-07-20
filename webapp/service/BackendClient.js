@@ -476,6 +476,10 @@ sap.ui.define([
 		if (!sUrl) {
 			return Promise.reject(new Error("No HTTPS sender endpoint is available for this integration."));
 		}
+		if (oRunOptions.entity) {
+			mHeaders["pulse.entity"] = oRunOptions.entity;
+			mHeaders["X-Pulse-Entity"] = oRunOptions.entity;
+		}
 		if (oRunOptions.selectQuery) {
 			mHeaders["pulse.selectQuery"] = oRunOptions.selectQuery;
 			mHeaders["X-Pulse-Select-Query"] = oRunOptions.selectQuery;

@@ -6,6 +6,7 @@ sap.ui.define([
 	"sap/ui/core/Item",
 	"sap/m/Button",
 	"sap/m/Dialog",
+	"sap/m/HBox",
 	"sap/m/Label",
 	"sap/m/Link",
 	"sap/m/MessageToast",
@@ -22,6 +23,7 @@ sap.ui.define([
 	Item,
 	Button,
 	Dialog,
+	HBox,
 	Label,
 	Link,
 	MessageToast,
@@ -141,6 +143,14 @@ sap.ui.define([
 		{ key: "nationalIdNav", text: "National IDs" },
 		{ key: "addressNavDEFLT", text: "Home address" }
 	];
+
+	function localName(oNode) {
+		return oNode && (oNode.localName || String(oNode.nodeName || "").split(":").pop());
+	}
+
+	function stripNamespace(sName) {
+		return String(sName || "").split(".").pop();
+	}
 
 	return BaseController.extend("integrationpulse.controller.IntegrationDetail", {
 
@@ -276,8 +286,17 @@ sap.ui.define([
 			}).filter(Boolean).join(",");
 		},
 
+		_getSfResourcePath: function () {
+			return this._findParamValue("SFResourcePath") ||
+				this._findParamValue("pulse.entity") ||
+				this._findParamValue("extract.entity") ||
+				"";
+		},
+
 		_getPulseRunOptionsFromDialog: function () {
+			var sEntity = this._getSfResourcePath();
 			return {
+				entity: sEntity,
 				selectQuery: this._oPulseSelectTextArea ? this._oPulseSelectTextArea.getValue().trim() : "",
 				expandQuery: this._oPulseExpandTextArea ? this._oPulseExpandTextArea.getValue().trim() : ""
 			};
@@ -292,7 +311,10 @@ sap.ui.define([
 			if (oOptions.expandQuery) {
 				aParts.push("$expand=" + oOptions.expandQuery);
 			}
-			return aParts.join("&") || this.getText("pulseDebugNoQuery");
+			if (!aParts.length) {
+				return this.getText("pulseDebugNoQuery");
+			}
+			return (oOptions.entity ? "/odata/v2/" + oOptions.entity + "?" : "") + aParts.join("&");
 		},
 
 		_refreshPulseDebugQuery: function () {
@@ -311,6 +333,14 @@ sap.ui.define([
 			this._refreshPulseDebugQuery();
 		},
 
+		_setPulsePickerItems: function (oPicker, aFields, aSelected) {
+			oPicker.removeAllItems();
+			(aFields || []).forEach(function (oField) {
+				oPicker.addItem(new Item({ key: oField.key, text: oField.text + " (" + oField.key + ")" }));
+			});
+			oPicker.setSelectedKeys(aSelected || []);
+		},
+
 		_createPulseFieldPicker: function (aFields, aSelected, sPlaceholder) {
 			var oPicker = new MultiComboBox({
 				width: "100%",
@@ -318,10 +348,154 @@ sap.ui.define([
 				selectedKeys: aSelected,
 				selectionFinish: this._syncPulseTextAreasFromPickers.bind(this)
 			});
-			aFields.forEach(function (oField) {
-				oPicker.addItem(new Item({ key: oField.key, text: oField.text + " (" + oField.key + ")" }));
-			});
+			this._setPulsePickerItems(oPicker, aFields, aSelected);
 			return oPicker;
+		},
+
+		_parseEdmxMetadata: function (sXml) {
+			var oDoc = new DOMParser().parseFromString(sXml, "application/xml");
+			if (oDoc.getElementsByTagName("parsererror").length) {
+				throw new Error(this.getText("pulseEdmxInvalid"));
+			}
+			var aNodes = Array.prototype.slice.call(oDoc.getElementsByTagName("*"));
+			var mEntitySets = {};
+			var mEntityTypes = {};
+			var mAssociations = {};
+			aNodes.forEach(function (oNode) {
+				var sLocalName = localName(oNode);
+				var sName = oNode.getAttribute("Name");
+				if (sLocalName === "EntitySet") {
+					mEntitySets[sName] = stripNamespace(oNode.getAttribute("EntityType"));
+				}
+				if (sLocalName === "Association") {
+					var mRoles = {};
+					Array.prototype.slice.call(oNode.childNodes).forEach(function (oChild) {
+						if (localName(oChild) === "End") {
+							mRoles[oChild.getAttribute("Role")] = stripNamespace(oChild.getAttribute("Type"));
+						}
+					});
+					mAssociations[sName] = mRoles;
+				}
+			});
+			aNodes.forEach(function (oNode) {
+				var sLocalName = localName(oNode);
+				var sName = oNode.getAttribute("Name");
+				if (sLocalName === "EntityType") {
+					mEntityTypes[sName] = { properties: [], navs: [] };
+					Array.prototype.slice.call(oNode.childNodes).forEach(function (oChild) {
+						var sChildName = localName(oChild);
+						if (sChildName === "Property") {
+							mEntityTypes[sName].properties.push(oChild.getAttribute("Name"));
+						}
+						if (sChildName === "NavigationProperty") {
+							var sRelationship = stripNamespace(oChild.getAttribute("Relationship"));
+							var mAssociation = mAssociations[sRelationship] || {};
+							mEntityTypes[sName].navs.push({
+								name: oChild.getAttribute("Name"),
+								target: mAssociation[oChild.getAttribute("ToRole")] || ""
+							});
+						}
+					});
+				}
+			});
+			return { entitySets: mEntitySets, entityTypes: mEntityTypes };
+		},
+
+		_buildEdmxQueryOptions: function (oMetadata, sResourcePath, iMaxDepth) {
+			var sRootEntity = (oMetadata.entitySets && oMetadata.entitySets[sResourcePath]) || sResourcePath;
+			if (!sRootEntity || !oMetadata.entityTypes[sRootEntity]) {
+				throw new Error(this.getText("pulseEdmxEntityNotFound", [sResourcePath || "SFResourcePath"]));
+			}
+			var aSelect = [];
+			var aExpand = [];
+			var mSelectSeen = {};
+			var mExpandSeen = {};
+			var fnAddSelect = function (sPath) {
+				if (!mSelectSeen[sPath]) {
+					mSelectSeen[sPath] = true;
+					aSelect.push({ key: sPath, text: sPath });
+				}
+			};
+			var fnAddExpand = function (sPath) {
+				if (!mExpandSeen[sPath]) {
+					mExpandSeen[sPath] = true;
+					aExpand.push({ key: sPath, text: sPath });
+				}
+			};
+			var fnWalk = function (sEntity, sPrefix, iDepth, aTrail) {
+				var oEntity = oMetadata.entityTypes[sEntity];
+				if (!oEntity || iDepth > iMaxDepth) {
+					return;
+				}
+				(oEntity.properties || []).forEach(function (sProperty) {
+					fnAddSelect(sPrefix + sProperty);
+				});
+				if (iDepth === iMaxDepth) {
+					return;
+				}
+				(oEntity.navs || []).forEach(function (oNav) {
+					if (!oNav.name || !oNav.target) {
+						return;
+					}
+					var sNavPath = sPrefix + oNav.name;
+					fnAddExpand(sNavPath);
+					if (aTrail.indexOf(oNav.target + ":" + sNavPath) === -1) {
+						fnWalk(oNav.target, sNavPath + "/", iDepth + 1, aTrail.concat([oNav.target + ":" + sNavPath]));
+					}
+				});
+			};
+			fnWalk(sRootEntity, "", 0, [sRootEntity]);
+			return {
+				rootEntity: sRootEntity,
+				selectFields: aSelect,
+				expandFields: aExpand
+			};
+		},
+
+		_uploadPulseEdmx: function () {
+			var oInput = document.createElement("input");
+			oInput.type = "file";
+			oInput.accept = ".edmx,.xml,text/xml,application/xml";
+			oInput.onchange = function () {
+				var oFile = oInput.files && oInput.files[0];
+				if (!oFile) {
+					return;
+				}
+				var oReader = new FileReader();
+				oReader.onload = function (oEvent) {
+					try {
+						var sResourcePath = this._getSfResourcePath();
+						if (!sResourcePath) {
+							throw new Error(this.getText("pulseEdmxNoResourcePath"));
+						}
+						var oMetadata = this._parseEdmxMetadata(oEvent.target.result);
+						var oOptions = this._buildEdmxQueryOptions(oMetadata, sResourcePath, 5);
+						this._setPulsePickerItems(
+							this._oPulseSelectPicker,
+							oOptions.selectFields,
+							this._splitQueryList(this._oPulseSelectTextArea.getValue())
+						);
+						this._setPulsePickerItems(
+							this._oPulseExpandPicker,
+							oOptions.expandFields,
+							this._splitQueryList(this._oPulseExpandTextArea.getValue())
+						);
+						if (this._oPulseEdmxStatus) {
+							this._oPulseEdmxStatus.setText(this.getText("pulseEdmxLoaded", [
+								oFile.name,
+								oOptions.rootEntity,
+								oOptions.selectFields.length,
+								oOptions.expandFields.length
+							]));
+						}
+						this._refreshPulseDebugQuery();
+					} catch (oErr) {
+						MessageBox.error(this.getText("pulseEdmxLoadFailed", [oErr.message]));
+					}
+				}.bind(this);
+				oReader.readAsText(oFile);
+			}.bind(this);
+			oInput.click();
 		},
 
 		_togglePulseAdvancedBox: function (sType, oLink) {
@@ -351,6 +525,7 @@ sap.ui.define([
 		},
 
 		_openPulseRunDialog: function (oIntegration, sName) {
+			var sResourcePath = this._getSfResourcePath();
 			var aSelectDefaults = this._splitQueryList(this._findParamValue("pulse.selectQuery"));
 			var aExpandDefaults = this._splitQueryList(this._findParamValue("pulse.expandQuery"));
 			this._oPulseSelectPicker = this._createPulseFieldPicker(
@@ -383,6 +558,11 @@ sap.ui.define([
 				editable: false,
 				value: this._formatPulseGeneratedQuery()
 			}).addStyleClass("ipPulseDebugTextArea");
+			this._oPulseEdmxStatus = new Text({
+				text: sResourcePath ?
+					this.getText("pulseEdmxWaitingForUpload", [sResourcePath]) :
+					this.getText("pulseEdmxNoResourcePath")
+			}).addStyleClass("ipPulseEdmxStatus");
 			this._oPulseSelectAdvancedBox = new VBox({
 				visible: false,
 				items: [
@@ -404,6 +584,29 @@ sap.ui.define([
 					this._oPulseDebugTextArea
 				]
 			}).addStyleClass("ipPulseDebugBox");
+
+			var oEdmxTools = new VBox({
+				items: [
+					new HBox({
+						alignItems: "Center",
+						justifyContent: "SpaceBetween",
+						items: [
+							new VBox({
+								items: [
+									new Label({ text: this.getText("pulseMetadataTitle") }).addStyleClass("ipPulseFieldLabel"),
+									this._oPulseEdmxStatus
+								]
+							}),
+							new Button({
+								text: this.getText("pulseUploadEdmx"),
+								icon: "sap-icon://upload",
+								type: "Transparent",
+								press: this._uploadPulseEdmx.bind(this)
+							})
+						]
+					})
+				]
+			}).addStyleClass("ipPulseMetadataBox");
 
 			var oSelectGroup = new VBox({
 				items: [
@@ -440,6 +643,7 @@ sap.ui.define([
 					new VBox({
 						items: [
 							new Text({ text: this.getText("pulseRunDialogIntro") }).addStyleClass("ipPulseIntro"),
+							oEdmxTools,
 							oSelectGroup,
 							oExpandGroup,
 							new Link({
@@ -475,6 +679,7 @@ sap.ui.define([
 					this._oPulseExpandAdvancedBox = null;
 					this._oPulseDebugTextArea = null;
 					this._oPulseDebugBox = null;
+					this._oPulseEdmxStatus = null;
 				}.bind(this)
 			});
 			this.getView().addDependent(oDialog);

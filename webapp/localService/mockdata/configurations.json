@@ -2,6 +2,7 @@
 	"comment": "Mock of SAP BTP GET .../IntegrationDesigntimeArtifacts(Id='..',Version='..')/Configurations, keyed by integration id. Each entry: ParameterKey/ParameterValue/DataType in BTP terms.",
 	"SF_EC_to_Vendor_Employee_File": [
 		{ "key": "extract.entity", "label": "EC entity", "value": "PerPerson", "defaultValue": "PerPerson", "dataType": "xsd:string" },
+		{ "key": "SFResourcePath", "label": "SuccessFactors resource path", "value": "EmpJob", "defaultValue": "EmpJob", "dataType": "xsd:string" },
 		{ "key": "extract.deltaEnabled", "label": "Delta enabled", "value": "true", "defaultValue": "true", "dataType": "xsd:boolean" },
 		{ "key": "extract.pageSize", "label": "Page size", "value": "500", "defaultValue": "200", "dataType": "xsd:integer" },
 		{ "key": "filter.company", "label": "Company code", "value": "1000", "defaultValue": "", "dataType": "xsd:string" },

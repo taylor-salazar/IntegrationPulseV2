@@ -57,6 +57,7 @@ async def trigger_immediate_run(integration_id: str, body: ImmediateRunRequest):
     return await btp_client.trigger_immediate_run(
         integration_id,
         body.endpoint,
+        entity=body.entity,
         select_query=body.selectQuery,
         expand_query=body.expandQuery,
     )
