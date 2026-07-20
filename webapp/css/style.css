@@ -431,6 +431,25 @@ html, body, #content {
 	line-height: 1.4;
 }
 
+.ipPulseDebugLink {
+	align-self: flex-start;
+	margin-top: 0.1rem;
+}
+
+.ipPulseDebugBox {
+	gap: 0.35rem;
+	padding: 0.75rem;
+	border: 1px dashed var(--sapList_BorderColor, #d9dfe5);
+	border-radius: 0.5rem;
+	background: var(--sapInfobar_NonInteractive_Background, #f7f9fb);
+}
+
+.ipPulseDebugTextArea textarea {
+	font-family: "72Mono", "Courier New", monospace;
+	font-size: 0.8125rem;
+	line-height: 1.4;
+}
+
 @media (max-width: 1300px) {
 	.ipIntegrationGroup {
 		width: calc((100% - 1.5rem) / 3);

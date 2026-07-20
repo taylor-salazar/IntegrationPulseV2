@@ -283,6 +283,24 @@ sap.ui.define([
 			};
 		},
 
+		_formatPulseGeneratedQuery: function () {
+			var oOptions = this._getPulseRunOptionsFromDialog();
+			var aParts = [];
+			if (oOptions.selectQuery) {
+				aParts.push("$select=" + oOptions.selectQuery);
+			}
+			if (oOptions.expandQuery) {
+				aParts.push("$expand=" + oOptions.expandQuery);
+			}
+			return aParts.join("&") || this.getText("pulseDebugNoQuery");
+		},
+
+		_refreshPulseDebugQuery: function () {
+			if (this._oPulseDebugTextArea) {
+				this._oPulseDebugTextArea.setValue(this._formatPulseGeneratedQuery());
+			}
+		},
+
 		_syncPulseTextAreasFromPickers: function () {
 			if (this._oPulseSelectTextArea && this._oPulseSelectPicker) {
 				this._oPulseSelectTextArea.setValue(this._joinQueryList(this._oPulseSelectPicker.getSelectedKeys()));
@@ -290,6 +308,7 @@ sap.ui.define([
 			if (this._oPulseExpandTextArea && this._oPulseExpandPicker) {
 				this._oPulseExpandTextArea.setValue(this._joinQueryList(this._oPulseExpandPicker.getSelectedKeys()));
 			}
+			this._refreshPulseDebugQuery();
 		},
 
 		_createPulseFieldPicker: function (aFields, aSelected, sPlaceholder) {
@@ -317,6 +336,20 @@ sap.ui.define([
 				this.getText("pulseShowAdvancedQuery"));
 		},
 
+		_togglePulseDebugBox: function (oLink) {
+			if (!this._oPulseDebugBox) {
+				return;
+			}
+			var bShow = !this._oPulseDebugBox.getVisible();
+			this._oPulseDebugBox.setVisible(bShow);
+			oLink.setText(bShow ?
+				this.getText("pulseHideGeneratedQuery") :
+				this.getText("pulseShowGeneratedQuery"));
+			if (bShow) {
+				this._refreshPulseDebugQuery();
+			}
+		},
+
 		_openPulseRunDialog: function (oIntegration, sName) {
 			var aSelectDefaults = this._splitQueryList(this._findParamValue("pulse.selectQuery"));
 			var aExpandDefaults = this._splitQueryList(this._findParamValue("pulse.expandQuery"));
@@ -334,14 +367,22 @@ sap.ui.define([
 				width: "100%",
 				rows: 3,
 				value: this._joinQueryList(aSelectDefaults),
-				placeholder: "userId,personIdExternal,firstName,lastName"
+				placeholder: "userId,personIdExternal,firstName,lastName",
+				liveChange: this._refreshPulseDebugQuery.bind(this)
 			});
 			this._oPulseExpandTextArea = new TextArea({
 				width: "100%",
 				rows: 3,
 				value: this._joinQueryList(aExpandDefaults),
-				placeholder: "employmentNav,personNav,emailNav"
+				placeholder: "employmentNav,personNav,emailNav",
+				liveChange: this._refreshPulseDebugQuery.bind(this)
 			});
+			this._oPulseDebugTextArea = new TextArea({
+				width: "100%",
+				rows: 3,
+				editable: false,
+				value: this._formatPulseGeneratedQuery()
+			}).addStyleClass("ipPulseDebugTextArea");
 			this._oPulseSelectAdvancedBox = new VBox({
 				visible: false,
 				items: [
@@ -356,6 +397,13 @@ sap.ui.define([
 					this._oPulseExpandTextArea
 				]
 			}).addStyleClass("ipPulseAdvancedBox");
+			this._oPulseDebugBox = new VBox({
+				visible: false,
+				items: [
+					new Label({ text: this.getText("pulseGeneratedQuery") }),
+					this._oPulseDebugTextArea
+				]
+			}).addStyleClass("ipPulseDebugBox");
 
 			var oSelectGroup = new VBox({
 				items: [
@@ -393,7 +441,14 @@ sap.ui.define([
 						items: [
 							new Text({ text: this.getText("pulseRunDialogIntro") }).addStyleClass("ipPulseIntro"),
 							oSelectGroup,
-							oExpandGroup
+							oExpandGroup,
+							new Link({
+								text: this.getText("pulseShowGeneratedQuery"),
+								press: function (oEvent) {
+									this._togglePulseDebugBox(oEvent.getSource());
+								}.bind(this)
+							}).addStyleClass("ipPulseDebugLink"),
+							this._oPulseDebugBox
 						]
 					}).addStyleClass("ipPulseRunContent")
 				],
@@ -418,6 +473,8 @@ sap.ui.define([
 					this._oPulseExpandTextArea = null;
 					this._oPulseSelectAdvancedBox = null;
 					this._oPulseExpandAdvancedBox = null;
+					this._oPulseDebugTextArea = null;
+					this._oPulseDebugBox = null;
 				}.bind(this)
 			});
 			this.getView().addDependent(oDialog);
