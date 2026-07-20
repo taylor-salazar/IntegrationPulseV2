@@ -242,7 +242,10 @@ def _tenant_runtime_base() -> str:
 def _join_runtime_endpoint(endpoint: str) -> str:
     if re.match(r"^https?://", endpoint or "", re.IGNORECASE):
         return endpoint
-    return urljoin(_tenant_runtime_base() + "/", str(endpoint or "").lstrip("/"))
+    path = str(endpoint or "").strip()
+    if path and not path.startswith("/http/") and path != "/http":
+        path = "/http/" + path.lstrip("/")
+    return urljoin(_tenant_runtime_base() + "/", path.lstrip("/"))
 
 
 async def trigger_immediate_run(

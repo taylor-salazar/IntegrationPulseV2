@@ -242,8 +242,16 @@ sap.ui.define([
 		return sNormalizedBase + sNormalizedPath;
 	}
 
+	function normalizeImmediateRunEndpoint(sEndpoint) {
+		var sPath = String(sEndpoint || "").trim();
+		if (!sPath || /^https?:\/\//i.test(sPath) || sPath.indexOf("/http/") === 0 || sPath === "/http") {
+			return sPath;
+		}
+		return "/http/" + sPath.replace(/^\/+/, "");
+	}
+
 	function getImmediateRunUrl(sEndpoint) {
-		return joinUrl(config.immediateRunBaseUrl || "", sEndpoint);
+		return joinUrl(config.immediateRunBaseUrl || "", normalizeImmediateRunEndpoint(sEndpoint));
 	}
 
 	function getDestinationUrl(sPath) {
