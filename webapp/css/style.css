@@ -515,7 +515,7 @@ html, body, #content {
 
 .ipPulseFilterHeader {
 	gap: 0.5rem;
-	padding: 0 5.25rem 0 0;
+	padding-right: 4.75rem;
 	color: var(--sapContent_LabelColor, #556b82);
 	font-size: 0.75rem;
 	font-weight: 600;
@@ -524,11 +524,13 @@ html, body, #content {
 
 .ipPulseFilterHeaderField,
 .ipPulseFilterHeaderOperation {
-	width: 13.25rem;
+	flex: 0 0 12rem;
+	width: 12rem;
 }
 
 .ipPulseFilterHeaderValue {
-	flex: 1 1 auto;
+	flex: 1 1 12rem;
+	min-width: 12rem;
 }
 
 .ipPulseFilterRows {
@@ -536,19 +538,26 @@ html, body, #content {
 }
 
 .ipPulseFilterRow {
+	align-items: center;
 	gap: 0.5rem;
 	width: 100%;
 }
 
 .ipPulseFilterField,
 .ipPulseFilterOperation {
-	width: 13.25rem;
-	flex: 0 0 13.25rem;
+	flex: 0 0 12rem;
+	width: 12rem;
+	min-width: 12rem;
 }
 
 .ipPulseFilterValue {
-	flex: 1 1 auto;
-	min-width: 10rem;
+	flex: 1 1 12rem;
+	min-width: 12rem;
+}
+
+.ipPulseFilterActions {
+	flex: 0 0 4.25rem;
+	width: 4.25rem;
 }
 
 .ipPulseDebugLink {

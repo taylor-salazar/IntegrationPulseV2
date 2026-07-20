@@ -695,23 +695,28 @@ sap.ui.define([
 			return new HBox({
 				alignItems: "Center",
 				items: [
-					oFieldSelect.addStyleClass("ipPulseFilterField"),
-					oOperationSelect.addStyleClass("ipPulseFilterOperation"),
-					oValueInput.addStyleClass("ipPulseFilterValue"),
-					new Button({
-						icon: "sap-icon://decline",
-						type: "Transparent",
-						tooltip: this.getText("pulseRemoveFilter"),
-						press: function () {
-							this._removePulseFilterRow(iIndex);
-						}.bind(this)
-					}),
-					new Button({
-						icon: "sap-icon://add",
-						type: "Transparent",
-						tooltip: this.getText("pulseAddFilter"),
-						press: this._addPulseFilterRow.bind(this)
-					})
+					new VBox({ items: [oFieldSelect] }).addStyleClass("ipPulseFilterField"),
+					new VBox({ items: [oOperationSelect] }).addStyleClass("ipPulseFilterOperation"),
+					new VBox({ items: [oValueInput] }).addStyleClass("ipPulseFilterValue"),
+					new HBox({
+						alignItems: "Center",
+						items: [
+							new Button({
+								icon: "sap-icon://decline",
+								type: "Transparent",
+								tooltip: this.getText("pulseRemoveFilter"),
+								press: function () {
+									this._removePulseFilterRow(iIndex);
+								}.bind(this)
+							}),
+							new Button({
+								icon: "sap-icon://add",
+								type: "Transparent",
+								tooltip: this.getText("pulseAddFilter"),
+								press: this._addPulseFilterRow.bind(this)
+							})
+						]
+					}).addStyleClass("ipPulseFilterActions")
 				]
 			}).addStyleClass("ipPulseFilterRow");
 		},
