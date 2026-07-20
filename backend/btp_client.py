@@ -249,8 +249,6 @@ async def trigger_immediate_run(
     integration_id: str,
     endpoint: str | None = None,
     entity: str = "",
-    select_query: str = "",
-    expand_query: str = "",
     filter_query: str = "",
 ) -> ImmediateRunResponse:
     # This calls the separate HTTPS sender endpoint for the iFlow. It does not
@@ -278,15 +276,8 @@ async def trigger_immediate_run(
     if entity:
         headers["pulse.entity"] = entity
         headers["X-Pulse-Entity"] = entity
-    if select_query:
-        headers["pulse.selectQuery"] = select_query
-        headers["X-Pulse-Select-Query"] = select_query
-    if expand_query:
-        headers["pulse.expandQuery"] = expand_query
-        headers["X-Pulse-Expand-Query"] = expand_query
     if filter_query:
-        headers["pulse.filterQuery"] = filter_query
-        headers["X-Pulse-Filter-Query"] = filter_query
+        headers["filter.query"] = filter_query
     async with httpx.AsyncClient(timeout=120) as client:
         resp = await client.post(
             _join_runtime_endpoint(resolved_endpoint),

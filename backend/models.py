@@ -56,8 +56,6 @@ class DeployResponse(BaseModel):
 class ImmediateRunRequest(BaseModel):
     endpoint: Optional[str] = None
     entity: str = ""
-    selectQuery: str = ""
-    expandQuery: str = ""
     filterQuery: str = ""
 
 

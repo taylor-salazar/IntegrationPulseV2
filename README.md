@@ -106,14 +106,14 @@ same Integration Suite destination. In proxy mode, the backend derives the tenan
 runtime root from `INTEGRATION_PULSE_IS_API_BASE`, or you can set
 `INTEGRATION_PULSE_IMMEDIATE_RUN_BASE` explicitly.
 
-If an integration defines standardized parameters named `pulse.selectQuery` and
-`pulse.expandQuery`, the immediate-run button opens a one-run selection dialog.
-The selected SuccessFactors query parts are sent to CPI as request headers:
-`pulse.entity`, `pulse.selectQuery`, `pulse.expandQuery`, `pulse.filterQuery`,
-`X-Pulse-Entity`, `X-Pulse-Select-Query`, `X-Pulse-Expand-Query`, and
-`X-Pulse-Filter-Query`. The iFlow should read those headers for the immediate
-run only and fall back to the saved externalized parameters when the headers are
-blank.
+The immediate-run button opens a one-run SuccessFactors selection dialog. The
+dialog helps the user build `$select`, `$expand`, and `$filter` query parameters,
+but Integration Pulse sends the final combined query string to CPI as one
+request header named `filter.query`. The iFlow should read `filter.query` for
+the immediate run only and fall back to its saved externalized parameters when
+that header is blank. The normal `Deploy` button does not set this header; it
+only saves/deploys the integration and lets the iFlow's own Groovy logic manage
+the query.
 
 The immediate-run dialog can also upload a SuccessFactors EDMX metadata file
 downloaded from `/odata/v2/$metadata`. The upload is held in browser memory for

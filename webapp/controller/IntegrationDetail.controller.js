@@ -345,28 +345,29 @@ sap.ui.define([
 			var sEntity = this._getSfResourcePath();
 			return {
 				entity: sEntity,
-				selectQuery: this._oPulseSelectTextArea ? this._oPulseSelectTextArea.getValue().trim() : "",
-				expandQuery: this._oPulseExpandTextArea ? this._oPulseExpandTextArea.getValue().trim() : "",
-				filterQuery: this._buildPulseFilterQuery()
+				filterQuery: this._buildPulseGeneratedQuery()
 			};
 		},
 
-		_formatPulseGeneratedQuery: function () {
-			var oOptions = this._getPulseRunOptionsFromDialog();
+		_buildPulseGeneratedQuery: function () {
 			var aParts = [];
-			if (oOptions.selectQuery) {
-				aParts.push("$select=" + oOptions.selectQuery);
+			var sSelectQuery = this._oPulseSelectTextArea ? this._oPulseSelectTextArea.getValue().trim() : "";
+			var sExpandQuery = this._oPulseExpandTextArea ? this._oPulseExpandTextArea.getValue().trim() : "";
+			var sFilterQuery = this._buildPulseFilterQuery();
+			if (sSelectQuery) {
+				aParts.push("$select=" + sSelectQuery);
 			}
-			if (oOptions.expandQuery) {
-				aParts.push("$expand=" + oOptions.expandQuery);
+			if (sExpandQuery) {
+				aParts.push("$expand=" + sExpandQuery);
 			}
-			if (oOptions.filterQuery) {
-				aParts.push("$filter=" + oOptions.filterQuery);
-			}
-			if (!aParts.length) {
-				return this.getText("pulseDebugNoQuery");
+			if (sFilterQuery) {
+				aParts.push("$filter=" + sFilterQuery);
 			}
 			return aParts.join("&");
+		},
+
+		_formatPulseGeneratedQuery: function () {
+			return this._buildPulseGeneratedQuery() || this.getText("pulseDebugNoQuery");
 		},
 
 		_refreshPulseDebugQuery: function () {
