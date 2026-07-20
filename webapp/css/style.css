@@ -513,6 +513,44 @@ html, body, #content {
 	line-height: 1.4;
 }
 
+.ipPulseFilterHeader {
+	gap: 0.5rem;
+	padding: 0 5.25rem 0 0;
+	color: var(--sapContent_LabelColor, #556b82);
+	font-size: 0.75rem;
+	font-weight: 600;
+	text-align: center;
+}
+
+.ipPulseFilterHeaderField,
+.ipPulseFilterHeaderOperation {
+	width: 13.25rem;
+}
+
+.ipPulseFilterHeaderValue {
+	flex: 1 1 auto;
+}
+
+.ipPulseFilterRows {
+	gap: 0.45rem;
+}
+
+.ipPulseFilterRow {
+	gap: 0.5rem;
+	width: 100%;
+}
+
+.ipPulseFilterField,
+.ipPulseFilterOperation {
+	width: 13.25rem;
+	flex: 0 0 13.25rem;
+}
+
+.ipPulseFilterValue {
+	flex: 1 1 auto;
+	min-width: 10rem;
+}
+
 .ipPulseDebugLink {
 	align-self: flex-start;
 	margin-top: 0.1rem;

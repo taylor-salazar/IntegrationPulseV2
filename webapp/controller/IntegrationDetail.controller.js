@@ -8,12 +8,14 @@ sap.ui.define([
 	"sap/m/CheckBox",
 	"sap/m/Dialog",
 	"sap/m/HBox",
+	"sap/m/Input",
 	"sap/m/Label",
 	"sap/m/Link",
 	"sap/m/MessageToast",
 	"sap/m/MessageBox",
 	"sap/m/MultiComboBox",
 	"sap/m/ProgressIndicator",
+	"sap/m/Select",
 	"sap/m/Text",
 	"sap/m/TextArea",
 	"sap/m/VBox"
@@ -27,12 +29,14 @@ sap.ui.define([
 	CheckBox,
 	Dialog,
 	HBox,
+	Input,
 	Label,
 	Link,
 	MessageToast,
 	MessageBox,
 	MultiComboBox,
 	ProgressIndicator,
+	Select,
 	Text,
 	TextArea,
 	VBox
@@ -139,6 +143,24 @@ sap.ui.define([
 		mFields[oField.key] = true;
 		return mFields;
 	}, {});
+
+	var FILTER_OPERATIONS = [
+		{ key: "eq", text: "is equal to" },
+		{ key: "ne", text: "is not equal to" },
+		{ key: "gt", text: "is greater than" },
+		{ key: "ge", text: "is greater than or equal to" },
+		{ key: "lt", text: "is less than" },
+		{ key: "le", text: "is less than or equal to" },
+		{ key: "in", text: "is contained in" },
+		{ key: "contains", text: "is like" },
+		{ key: "startswith", text: "starts with" },
+		{ key: "notstartswith", text: "does not start with" },
+		{ key: "endswith", text: "ends with" },
+		{ key: "notendswith", text: "does not end with" },
+		{ key: "toupper_eq", text: "to upper case is equal to" },
+		{ key: "tolower_eq", text: "to lower case is equal to" },
+		{ key: "trim_eq", text: "trim is equal to" }
+	];
 
 	function stripNamespace(sName) {
 		return String(sName || "").split(".").pop();
@@ -324,7 +346,8 @@ sap.ui.define([
 			return {
 				entity: sEntity,
 				selectQuery: this._oPulseSelectTextArea ? this._oPulseSelectTextArea.getValue().trim() : "",
-				expandQuery: this._oPulseExpandTextArea ? this._oPulseExpandTextArea.getValue().trim() : ""
+				expandQuery: this._oPulseExpandTextArea ? this._oPulseExpandTextArea.getValue().trim() : "",
+				filterQuery: this._buildPulseFilterQuery()
 			};
 		},
 
@@ -337,10 +360,13 @@ sap.ui.define([
 			if (oOptions.expandQuery) {
 				aParts.push("$expand=" + oOptions.expandQuery);
 			}
+			if (oOptions.filterQuery) {
+				aParts.push("$filter=" + oOptions.filterQuery);
+			}
 			if (!aParts.length) {
 				return this.getText("pulseDebugNoQuery");
 			}
-			return (oOptions.entity ? "/odata/v2/" + oOptions.entity + "?" : "") + aParts.join("&");
+			return aParts.join("&");
 		},
 
 		_refreshPulseDebugQuery: function () {
@@ -358,6 +384,7 @@ sap.ui.define([
 			if (this._oPulseExpandTextArea) {
 				this._oPulseExpandTextArea.setValue(this._joinQueryList(Object.keys(this._mPulseAdvancedExpand || {})));
 			}
+			this._syncPulseFilterFieldOptions();
 			this._refreshPulseDebugQuery();
 		},
 
@@ -520,6 +547,184 @@ sap.ui.define([
 			}
 			this._renderPulseAdvancedLevel(this._oPulseAdvancedTree, "", 0);
 			this._syncPulseTextAreasFromPickers();
+		},
+
+		_getPulseSelectedFilterFields: function () {
+			return this._splitQueryList(this._oPulseSelectTextArea ? this._oPulseSelectTextArea.getValue() : "")
+				.map(function (sPath) {
+					return { key: sPath, text: sPath };
+				});
+		},
+
+		_formatPulseFilterValue: function (sValue) {
+			var sText = String(sValue || "").trim();
+			if (/^-?\d+(\.\d+)?$/.test(sText) || /^(true|false|null)$/i.test(sText)) {
+				return sText;
+			}
+			return "'" + sText.replace(/'/g, "''") + "'";
+		},
+
+		_buildPulseFilterExpression: function (sField, sOperation, sValue) {
+			var sFormattedValue = this._formatPulseFilterValue(sValue);
+			switch (sOperation) {
+			case "ne":
+			case "gt":
+			case "ge":
+			case "lt":
+			case "le":
+				return sField + " " + sOperation + " " + sFormattedValue;
+			case "in":
+				return String(sValue || "").split(",").map(function (sItem) {
+					return sItem.trim();
+				}).filter(Boolean).map(function (sItem) {
+					return sField + " eq " + this._formatPulseFilterValue(sItem);
+				}.bind(this)).join(" or ");
+			case "contains":
+				return "substringof(" + sFormattedValue + "," + sField + ")";
+			case "startswith":
+				return "startswith(" + sField + "," + sFormattedValue + ")";
+			case "notstartswith":
+				return "not startswith(" + sField + "," + sFormattedValue + ")";
+			case "endswith":
+				return "endswith(" + sField + "," + sFormattedValue + ")";
+			case "notendswith":
+				return "not endswith(" + sField + "," + sFormattedValue + ")";
+			case "toupper_eq":
+				return "toupper(" + sField + ") eq " + sFormattedValue;
+			case "tolower_eq":
+				return "tolower(" + sField + ") eq " + sFormattedValue;
+			case "trim_eq":
+				return "trim(" + sField + ") eq " + sFormattedValue;
+			default:
+				return sField + " eq " + sFormattedValue;
+			}
+		},
+
+		_buildPulseFilterQuery: function () {
+			return (this._aPulseFilters || []).map(function (oFilter) {
+				if (!oFilter.field || !oFilter.operation || !String(oFilter.value || "").trim()) {
+					return "";
+				}
+				var sExpression = this._buildPulseFilterExpression(oFilter.field, oFilter.operation, oFilter.value);
+				return sExpression.indexOf(" or ") > -1 ? "(" + sExpression + ")" : sExpression;
+			}.bind(this)).filter(Boolean).join(" and ");
+		},
+
+		_syncPulseFilterFieldOptions: function () {
+			var aFields = this._getPulseSelectedFilterFields();
+			(this._aPulseFilterFieldSelects || []).forEach(function (oSelect, iIndex) {
+				var sCurrentKey = oSelect.getSelectedKey();
+				oSelect.removeAllItems();
+				aFields.forEach(function (oField) {
+					oSelect.addItem(new Item({ key: oField.key, text: oField.text }));
+				});
+				if (sCurrentKey && aFields.some(function (oField) { return oField.key === sCurrentKey; })) {
+					oSelect.setSelectedKey(sCurrentKey);
+				} else if (aFields[0]) {
+					oSelect.setSelectedKey(aFields[0].key);
+					if (this._aPulseFilters[iIndex]) {
+						this._aPulseFilters[iIndex].field = aFields[0].key;
+					}
+				} else if (this._aPulseFilters[iIndex]) {
+					this._aPulseFilters[iIndex].field = "";
+				}
+			}.bind(this));
+		},
+
+		_addPulseFilterRow: function () {
+			var aFields = this._getPulseSelectedFilterFields();
+			this._aPulseFilters = this._aPulseFilters || [];
+			this._aPulseFilters.push({
+				field: aFields[0] ? aFields[0].key : "",
+				operation: "eq",
+				value: ""
+			});
+			this._renderPulseFilterRows();
+			this._refreshPulseDebugQuery();
+		},
+
+		_removePulseFilterRow: function (iIndex) {
+			this._aPulseFilters.splice(iIndex, 1);
+			if (!this._aPulseFilters.length) {
+				this._aPulseFilters.push({ field: "", operation: "eq", value: "" });
+			}
+			this._renderPulseFilterRows();
+			this._refreshPulseDebugQuery();
+		},
+
+		_createPulseFilterRow: function (oFilter, iIndex) {
+			var aFields = this._getPulseSelectedFilterFields();
+			var oFieldSelect = new Select({
+				width: "100%",
+				selectedKey: oFilter.field,
+				change: function (oEvent) {
+					this._aPulseFilters[iIndex].field = oEvent.getSource().getSelectedKey();
+					this._refreshPulseDebugQuery();
+				}.bind(this)
+			});
+			aFields.forEach(function (oField) {
+				oFieldSelect.addItem(new Item({ key: oField.key, text: oField.text }));
+			});
+			if (!oFilter.field && aFields[0]) {
+				oFilter.field = aFields[0].key;
+				oFieldSelect.setSelectedKey(oFilter.field);
+			}
+			this._aPulseFilterFieldSelects.push(oFieldSelect);
+
+			var oOperationSelect = new Select({
+				width: "100%",
+				selectedKey: oFilter.operation || "eq",
+				change: function (oEvent) {
+					this._aPulseFilters[iIndex].operation = oEvent.getSource().getSelectedKey();
+					this._refreshPulseDebugQuery();
+				}.bind(this)
+			});
+			FILTER_OPERATIONS.forEach(function (oOperation) {
+				oOperationSelect.addItem(new Item({ key: oOperation.key, text: oOperation.text }));
+			});
+
+			var oValueInput = new Input({
+				width: "100%",
+				value: oFilter.value,
+				liveChange: function (oEvent) {
+					this._aPulseFilters[iIndex].value = oEvent.getParameter("value");
+					this._refreshPulseDebugQuery();
+				}.bind(this)
+			});
+
+			return new HBox({
+				alignItems: "Center",
+				items: [
+					oFieldSelect.addStyleClass("ipPulseFilterField"),
+					oOperationSelect.addStyleClass("ipPulseFilterOperation"),
+					oValueInput.addStyleClass("ipPulseFilterValue"),
+					new Button({
+						icon: "sap-icon://decline",
+						type: "Transparent",
+						tooltip: this.getText("pulseRemoveFilter"),
+						press: function () {
+							this._removePulseFilterRow(iIndex);
+						}.bind(this)
+					}),
+					new Button({
+						icon: "sap-icon://add",
+						type: "Transparent",
+						tooltip: this.getText("pulseAddFilter"),
+						press: this._addPulseFilterRow.bind(this)
+					})
+				]
+			}).addStyleClass("ipPulseFilterRow");
+		},
+
+		_renderPulseFilterRows: function () {
+			if (!this._oPulseFilterRows) {
+				return;
+			}
+			this._aPulseFilterFieldSelects = [];
+			this._oPulseFilterRows.removeAllItems();
+			(this._aPulseFilters || []).forEach(function (oFilter, iIndex) {
+				this._oPulseFilterRows.addItem(this._createPulseFilterRow(oFilter, iIndex));
+			}.bind(this));
 		},
 
 		_parseEdmxMetadata: function (sXml) {
@@ -820,6 +1025,9 @@ sap.ui.define([
 				placeholder: "employmentNav,personNav,emailNav",
 				liveChange: this._refreshPulseDebugQuery.bind(this)
 			});
+			this._aPulseFilters = [{ field: "", operation: "eq", value: "" }];
+			this._aPulseFilterFieldSelects = [];
+			this._oPulseFilterRows = new VBox().addStyleClass("ipPulseFilterRows");
 			this._oPulseDebugTextArea = new TextArea({
 				width: "100%",
 				rows: 3,
@@ -847,6 +1055,7 @@ sap.ui.define([
 			}).addStyleClass("ipPulseAdvancedBox");
 			this._oPulseAdvancedTree = new VBox().addStyleClass("ipPulseAdvancedTree");
 			this._renderPulseAdvancedTree();
+			this._renderPulseFilterRows();
 			this._oPulseDebugBox = new VBox({
 				visible: false,
 				items: [
@@ -902,6 +1111,25 @@ sap.ui.define([
 				]
 			}).addStyleClass("ipPulseFieldGroup");
 
+			var oFilterGroup = new VBox({
+				items: [
+					new Label({ text: this.getText("pulseFilterFields") }).addStyleClass("ipPulseFieldLabel"),
+					new Text({ text: this.getText("pulseFilterFieldsIntro") }).addStyleClass("ipPulseAdvancedIntro"),
+					new HBox({
+						items: [
+							new Text({ text: this.getText("pulseFilterField") }).addStyleClass("ipPulseFilterHeaderField"),
+							new Text({ text: this.getText("pulseFilterOperation") }).addStyleClass("ipPulseFilterHeaderOperation"),
+							new Text({ text: this.getText("pulseFilterValue") }).addStyleClass("ipPulseFilterHeaderValue")
+						]
+					}).addStyleClass("ipPulseFilterHeader"),
+					this._oPulseFilterRows,
+					new Link({
+						text: this.getText("pulseAddFilter"),
+						press: this._addPulseFilterRow.bind(this)
+					}).addStyleClass("ipPulseAdvancedLink")
+				]
+			}).addStyleClass("ipPulseFieldGroup");
+
 			var oDialog = new Dialog({
 				title: this.getText("pulseRunDialogTitle"),
 				contentWidth: "46rem",
@@ -912,6 +1140,7 @@ sap.ui.define([
 							oEdmxTools,
 							oSelectGroup,
 							oAdvancedGroup,
+							oFilterGroup,
 							new Link({
 								text: this.getText("pulseShowGeneratedQuery"),
 								press: function (oEvent) {
@@ -946,6 +1175,9 @@ sap.ui.define([
 					this._oPulseEdmxOptions = null;
 					this._mPulseAdvancedSelect = null;
 					this._mPulseAdvancedExpand = null;
+					this._aPulseFilters = null;
+					this._aPulseFilterFieldSelects = null;
+					this._oPulseFilterRows = null;
 					this._oPulseDebugTextArea = null;
 					this._oPulseDebugBox = null;
 					this._oPulseEdmxStatus = null;

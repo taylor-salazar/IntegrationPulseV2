@@ -58,6 +58,7 @@ class ImmediateRunRequest(BaseModel):
     entity: str = ""
     selectQuery: str = ""
     expandQuery: str = ""
+    filterQuery: str = ""
 
 
 class ImmediateRunResponse(BaseModel):

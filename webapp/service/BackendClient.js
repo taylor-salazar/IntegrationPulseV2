@@ -488,6 +488,10 @@ sap.ui.define([
 			mHeaders["pulse.expandQuery"] = oRunOptions.expandQuery;
 			mHeaders["X-Pulse-Expand-Query"] = oRunOptions.expandQuery;
 		}
+		if (oRunOptions.filterQuery) {
+			mHeaders["pulse.filterQuery"] = oRunOptions.filterQuery;
+			mHeaders["X-Pulse-Filter-Query"] = oRunOptions.filterQuery;
+		}
 		return fetch(sUrl, {
 			method: "POST",
 			headers: mHeaders,

@@ -109,10 +109,11 @@ runtime root from `INTEGRATION_PULSE_IS_API_BASE`, or you can set
 If an integration defines standardized parameters named `pulse.selectQuery` and
 `pulse.expandQuery`, the immediate-run button opens a one-run selection dialog.
 The selected SuccessFactors query parts are sent to CPI as request headers:
-`pulse.entity`, `pulse.selectQuery`, `pulse.expandQuery`, `X-Pulse-Entity`,
-`X-Pulse-Select-Query`, and `X-Pulse-Expand-Query`. The iFlow should read those
-headers for the immediate run only and fall back to the saved externalized
-parameters when the headers are blank.
+`pulse.entity`, `pulse.selectQuery`, `pulse.expandQuery`, `pulse.filterQuery`,
+`X-Pulse-Entity`, `X-Pulse-Select-Query`, `X-Pulse-Expand-Query`, and
+`X-Pulse-Filter-Query`. The iFlow should read those headers for the immediate
+run only and fall back to the saved externalized parameters when the headers are
+blank.
 
 The immediate-run dialog can also upload a SuccessFactors EDMX metadata file
 downloaded from `/odata/v2/$metadata`. The upload is held in browser memory for
