@@ -7,6 +7,7 @@ sap.ui.define([
 	"sap/m/Button",
 	"sap/m/Dialog",
 	"sap/m/Label",
+	"sap/m/Link",
 	"sap/m/MessageToast",
 	"sap/m/MessageBox",
 	"sap/m/MultiComboBox",
@@ -22,6 +23,7 @@ sap.ui.define([
 	Button,
 	Dialog,
 	Label,
+	Link,
 	MessageToast,
 	MessageBox,
 	MultiComboBox,
@@ -303,6 +305,18 @@ sap.ui.define([
 			return oPicker;
 		},
 
+		_togglePulseAdvancedBox: function (sType, oLink) {
+			var oBox = sType === "select" ? this._oPulseSelectAdvancedBox : this._oPulseExpandAdvancedBox;
+			if (!oBox) {
+				return;
+			}
+			var bShow = !oBox.getVisible();
+			oBox.setVisible(bShow);
+			oLink.setText(bShow ?
+				this.getText("pulseHideAdvancedQuery") :
+				this.getText("pulseShowAdvancedQuery"));
+		},
+
 		_openPulseRunDialog: function (oIntegration, sName) {
 			var aSelectDefaults = this._splitQueryList(this._findParamValue("pulse.selectQuery"));
 			var aExpandDefaults = this._splitQueryList(this._findParamValue("pulse.expandQuery"));
@@ -328,25 +342,60 @@ sap.ui.define([
 				value: this._joinQueryList(aExpandDefaults),
 				placeholder: "employmentNav,personNav,emailNav"
 			});
+			this._oPulseSelectAdvancedBox = new VBox({
+				visible: false,
+				items: [
+					new Label({ text: this.getText("pulseSelectAdvanced") }),
+					this._oPulseSelectTextArea
+				]
+			}).addStyleClass("ipPulseAdvancedBox");
+			this._oPulseExpandAdvancedBox = new VBox({
+				visible: false,
+				items: [
+					new Label({ text: this.getText("pulseExpandAdvanced") }),
+					this._oPulseExpandTextArea
+				]
+			}).addStyleClass("ipPulseAdvancedBox");
+
+			var oSelectGroup = new VBox({
+				items: [
+					new Label({ text: this.getText("pulseSelectFields") }).addStyleClass("ipPulseFieldLabel"),
+					this._oPulseSelectPicker,
+					new Link({
+						text: this.getText("pulseShowAdvancedQuery"),
+						press: function (oEvent) {
+							this._togglePulseAdvancedBox("select", oEvent.getSource());
+						}.bind(this)
+					}).addStyleClass("ipPulseAdvancedLink"),
+					this._oPulseSelectAdvancedBox
+				]
+			}).addStyleClass("ipPulseFieldGroup");
+
+			var oExpandGroup = new VBox({
+				items: [
+					new Label({ text: this.getText("pulseExpandFields") }).addStyleClass("ipPulseFieldLabel"),
+					this._oPulseExpandPicker,
+					new Link({
+						text: this.getText("pulseShowAdvancedQuery"),
+						press: function (oEvent) {
+							this._togglePulseAdvancedBox("expand", oEvent.getSource());
+						}.bind(this)
+					}).addStyleClass("ipPulseAdvancedLink"),
+					this._oPulseExpandAdvancedBox
+				]
+			}).addStyleClass("ipPulseFieldGroup");
 
 			var oDialog = new Dialog({
 				title: this.getText("pulseRunDialogTitle"),
 				contentWidth: "46rem",
 				content: [
 					new VBox({
-						class: "sapUiMediumMargin",
 						items: [
-							new Text({ text: this.getText("pulseRunDialogIntro") }),
-							new Label({ text: this.getText("pulseSelectFields"), class: "sapUiSmallMarginTop" }),
-							this._oPulseSelectPicker,
-							new Label({ text: this.getText("pulseSelectAdvanced"), class: "sapUiSmallMarginTop" }),
-							this._oPulseSelectTextArea,
-							new Label({ text: this.getText("pulseExpandFields"), class: "sapUiSmallMarginTop" }),
-							this._oPulseExpandPicker,
-							new Label({ text: this.getText("pulseExpandAdvanced"), class: "sapUiSmallMarginTop" }),
-							this._oPulseExpandTextArea
+							new Text({ text: this.getText("pulseRunDialogIntro") }).addStyleClass("ipPulseIntro"),
+							oSelectGroup,
+							oExpandGroup
 						]
-					})
+					}).addStyleClass("ipPulseRunContent")
 				],
 				beginButton: new Button({
 					text: this.getText("deployImmediately"),
@@ -367,6 +416,8 @@ sap.ui.define([
 					this._oPulseExpandPicker = null;
 					this._oPulseSelectTextArea = null;
 					this._oPulseExpandTextArea = null;
+					this._oPulseSelectAdvancedBox = null;
+					this._oPulseExpandAdvancedBox = null;
 				}.bind(this)
 			});
 			this.getView().addDependent(oDialog);
