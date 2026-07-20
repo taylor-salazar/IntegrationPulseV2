@@ -116,9 +116,11 @@ parameters when the headers are blank.
 
 The immediate-run dialog can also upload a SuccessFactors EDMX metadata file
 downloaded from `/odata/v2/$metadata`. The upload is held in browser memory for
-the current dialog session, then parsed against `SFResourcePath` such as
-`EmpJob` or `EmpEmployment` to populate tenant-specific select/expand choices up
-to five navigation levels deep.
+parsing, then reduced to tenant-specific select/expand choices for the current
+`SFResourcePath`, such as `EmpJob` or `EmpEmployment`, up to five navigation
+levels deep. The app caches only those reduced choices in the browser by
+`SFResourcePath`, not the raw EDMX, so the same SuccessFactors entity can be
+reused the next time the dialog opens.
 
 ---
 

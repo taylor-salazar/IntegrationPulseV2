@@ -155,6 +155,28 @@ sap.ui.define([
 		return oMatch ? oMatch[2] : "";
 	}
 
+	var EDMX_OPTIONS_CACHE_KEY = "integrationPulse.edmxOptions.v1";
+	var mEdmxOptionsCache = {};
+
+	function loadEdmxOptionsCache() {
+		try {
+			mEdmxOptionsCache = JSON.parse(window.localStorage.getItem(EDMX_OPTIONS_CACHE_KEY) || "{}") || {};
+		} catch (e) {
+			mEdmxOptionsCache = {};
+		}
+	}
+
+	function persistEdmxOptionsCache() {
+		try {
+			window.localStorage.setItem(EDMX_OPTIONS_CACHE_KEY, JSON.stringify(mEdmxOptionsCache));
+		} catch (e) {
+			// Large tenant metadata can produce many options. The in-memory cache still helps
+			// during this browser session if persistent storage is full or unavailable.
+		}
+	}
+
+	loadEdmxOptionsCache();
+
 	return BaseController.extend("integrationpulse.controller.IntegrationDetail", {
 
 		onInit: function () {
@@ -452,6 +474,64 @@ sap.ui.define([
 			return { entitySets: mEntitySets, entityTypes: mEntityTypes };
 		},
 
+		_getEdmxOptionsCacheKey: function (sResourcePath) {
+			return String(sResourcePath || "").trim();
+		},
+
+		_getCachedEdmxOptions: function (sResourcePath) {
+			var sCacheKey = this._getEdmxOptionsCacheKey(sResourcePath);
+			var oCached = sCacheKey && mEdmxOptionsCache[sCacheKey];
+			if (!oCached || !Array.isArray(oCached.selectFields) || !Array.isArray(oCached.expandFields)) {
+				return null;
+			}
+			return {
+				rootEntity: oCached.rootEntity,
+				selectFields: oCached.selectFields,
+				expandFields: oCached.expandFields,
+				truncated: !!oCached.truncated,
+				cachedAt: oCached.cachedAt
+			};
+		},
+
+		_storeEdmxOptions: function (sResourcePath, oOptions) {
+			var sCacheKey = this._getEdmxOptionsCacheKey(sResourcePath);
+			if (!sCacheKey || !oOptions) {
+				return;
+			}
+			mEdmxOptionsCache[sCacheKey] = {
+				rootEntity: oOptions.rootEntity,
+				selectFields: (oOptions.selectFields || []).slice(0, 5000),
+				expandFields: (oOptions.expandFields || []).slice(0, 5000),
+				truncated: !!oOptions.truncated,
+				cachedAt: new Date().toISOString()
+			};
+			persistEdmxOptionsCache();
+		},
+
+		_applyEdmxOptionsToDialog: function (oOptions, mSettings) {
+			var mOptions = mSettings || {};
+			var fnSelectProgress = mOptions.selectProgress;
+			var fnExpandProgress = mOptions.expandProgress;
+			return this._setPulsePickerItemsChunked(
+				this._oPulseSelectPicker,
+				oOptions.selectFields,
+				this._splitQueryList(this._oPulseSelectTextArea.getValue()),
+				fnSelectProgress
+			).then(function () {
+				return this._setPulsePickerItemsChunked(
+					this._oPulseExpandPicker,
+					oOptions.expandFields,
+					this._splitQueryList(this._oPulseExpandTextArea.getValue()),
+					fnExpandProgress
+				);
+			}.bind(this)).then(function () {
+				if (this._oPulseEdmxStatus && mOptions.statusText) {
+					this._oPulseEdmxStatus.setText(mOptions.statusText);
+				}
+				this._refreshPulseDebugQuery();
+			}.bind(this));
+		},
+
 		_buildEdmxQueryOptions: function (oMetadata, sResourcePath, iMaxDepth) {
 			var sRootEntity = (oMetadata.entitySets && oMetadata.entitySets[sResourcePath]) || sResourcePath;
 			if (!sRootEntity || !oMetadata.entityTypes[sRootEntity]) {
@@ -584,32 +664,22 @@ sap.ui.define([
 						var oMetadata = this._parseEdmxMetadata(oEvent.target.result);
 						this._updateEdmxProgress(86, this.getText("pulseEdmxProgressBuilding"));
 						var oOptions = this._buildEdmxQueryOptions(oMetadata, sResourcePath, 5);
+						this._storeEdmxOptions(sResourcePath, oOptions);
 						this._updateEdmxProgress(94, this.getText("pulseEdmxProgressPopulating"));
-						this._setPulsePickerItemsChunked(
-							this._oPulseSelectPicker,
-							oOptions.selectFields,
-							this._splitQueryList(this._oPulseSelectTextArea.getValue()),
-							function (nProgress) {
+						this._applyEdmxOptionsToDialog(oOptions, {
+							selectProgress: function (nProgress) {
 								this._updateEdmxProgress(94 + (nProgress * 3), this.getText("pulseEdmxProgressPopulating"));
-							}.bind(this)
-						).then(function () {
-							return this._setPulsePickerItemsChunked(
-								this._oPulseExpandPicker,
-								oOptions.expandFields,
-								this._splitQueryList(this._oPulseExpandTextArea.getValue()),
-								function (nProgress) {
-									this._updateEdmxProgress(97 + (nProgress * 3), this.getText("pulseEdmxProgressPopulating"));
-								}.bind(this)
-							);
-						}.bind(this)).then(function () {
-							if (this._oPulseEdmxStatus) {
-								this._oPulseEdmxStatus.setText(this.getText("pulseEdmxLoaded", [
+							}.bind(this),
+							expandProgress: function (nProgress) {
+								this._updateEdmxProgress(97 + (nProgress * 3), this.getText("pulseEdmxProgressPopulating"));
+							}.bind(this),
+							statusText: this.getText("pulseEdmxLoaded", [
 									oFile.name,
 									oOptions.rootEntity,
 									oOptions.selectFields.length,
 									oOptions.expandFields.length
-								]) + (oOptions.truncated ? " " + this.getText("pulseEdmxTruncated") : ""));
-							}
+								]) + (oOptions.truncated ? " " + this.getText("pulseEdmxTruncated") : "")
+						}).then(function () {
 							this._refreshPulseDebugQuery();
 							this._updateEdmxProgress(100, this.getText("pulseEdmxProgressComplete"));
 							setTimeout(this._closeEdmxProgressDialog.bind(this), 250);
@@ -817,6 +887,16 @@ sap.ui.define([
 			});
 			this.getView().addDependent(oDialog);
 			oDialog.open();
+			var oCachedOptions = this._getCachedEdmxOptions(sResourcePath);
+			if (oCachedOptions) {
+				this._applyEdmxOptionsToDialog(oCachedOptions, {
+					statusText: this.getText("pulseEdmxCached", [
+						oCachedOptions.rootEntity,
+						oCachedOptions.selectFields.length,
+						oCachedOptions.expandFields.length
+					]) + (oCachedOptions.truncated ? " " + this.getText("pulseEdmxTruncated") : "")
+				});
+			}
 		},
 
 		_recomputeDirty: function () {
