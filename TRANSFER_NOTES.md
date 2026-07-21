@@ -83,6 +83,12 @@ The current UI now supports the source repo's destination flow:
   - routes `/api` through `fiori-tools-proxy`
   - expects destination `Integration-Suite-Dev`
 
+Integration list contract:
+
+- The Integrations page lists runtime/deployed artifacts only.
+- Destination mode reads `/api/v1/IntegrationRuntimeArtifacts`.
+- Design-time endpoints are used only after a runtime artifact is selected to read/edit externalized parameters.
+
 Runtime URLs:
 
 - Destination live: `index.html`

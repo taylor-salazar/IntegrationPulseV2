@@ -15,7 +15,7 @@ sap.ui.define([
 		 * the app and calls the init method once.
 		 */
 		init: function () {
-			// call the base component's init function
+			// call the base component's init function on this specific integrationpulse.Component instance that was just created
 			UIComponent.prototype.init.apply(this, arguments);
 
 			// set the device model
