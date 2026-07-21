@@ -109,11 +109,13 @@ runtime root from `INTEGRATION_PULSE_IS_API_BASE`, or you can set
 The immediate-run button opens a one-run SuccessFactors selection dialog. The
 dialog helps the user build `$select`, `$expand`, and `$filter` query parameters,
 but Integration Pulse sends the final combined query string to CPI as one
-request header named `filter.query`. The iFlow should read `filter.query` for
-the immediate run only and fall back to its saved externalized parameters when
-that header is blank. The normal `Deploy` button does not set this header; it
-only saves/deploys the integration and lets the iFlow's own Groovy logic manage
-the query.
+request value. Pulse sends it as `filter.query`, `filter-query`, and
+`X-Pulse-Filter-Query` headers so the iFlow can read the variant exposed by the
+runtime and copy it into the `filter.query` exchange property. The iFlow should
+use that property for the immediate run only and fall back to its saved
+externalized parameters when it is blank. The normal `Deploy` button does not
+set this value; it only saves/deploys the integration and lets the iFlow's own
+Groovy logic manage the query.
 
 For the HTTPS sender address, Pulse first uses the runtime artifact endpoint
 returned by Integration Suite. If the runtime API does not expose one, add an

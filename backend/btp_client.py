@@ -281,6 +281,8 @@ async def trigger_immediate_run(
         headers["X-Pulse-Entity"] = entity
     if filter_query:
         headers["filter.query"] = filter_query
+        headers["filter-query"] = filter_query
+        headers["X-Pulse-Filter-Query"] = filter_query
     async with httpx.AsyncClient(timeout=120) as client:
         resp = await client.post(
             _join_runtime_endpoint(resolved_endpoint),
