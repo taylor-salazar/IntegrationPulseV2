@@ -15,7 +15,7 @@ server:
         backend:
           - destination: Integration-Suite-Dev
             path: /api
-          - destination: Integration-Suite-Dev
+          - destination: euam-ts-bt-runtime
             path: /http
 framework:
   name: OpenUI5
