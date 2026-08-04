@@ -230,6 +230,7 @@ sap.ui.define([
 				var aConfigs = aRes[1] || [];
 				that.getModel("integration").setData(oIntegration);
 				that.getModel("parameters").setData({ groups: that._groupParams(aConfigs) });
+				that._updateStandardFeatureFlags();
 				that.getModel("detailView").setProperty("/busy", false);
 			}).catch(function (oErr) {
 				that.getModel("detailView").setProperty("/busy", false);
@@ -343,6 +344,23 @@ sap.ui.define([
 
 		_getImmediateRunEndpoint: function () {
 			return this._findParamValue("pulse.immediateRunEndpoint");
+		},
+
+		_isTruthyParamValue: function (sValue) {
+			return ["true", "yes", "y", "1"].indexOf(String(sValue || "").trim().toLowerCase()) > -1;
+		},
+
+		_isSuccessFactorsSource: function () {
+			var sSource = this._findParamValue("pulse.Source");
+			return String(sSource || "").replace(/[\s_-]/g, "").toLowerCase() === "successfactors";
+		},
+
+		_updateStandardFeatureFlags: function () {
+			var oDetailModel = this.getModel("detailView");
+			oDetailModel.setProperty("/immediateRunSupported", this._isTruthyParamValue(
+				this._findParamValue("pulse.immediateRunSupported")
+			));
+			oDetailModel.setProperty("/sourceIsSuccessFactors", this._isSuccessFactorsSource());
 		},
 
 		_getPulseRunOptionsFromDialog: function () {
@@ -1014,6 +1032,7 @@ sap.ui.define([
 
 		_openPulseRunDialog: function (oIntegration, sName) {
 			var sResourcePath = this._getSfResourcePath();
+			var bSourceIsSuccessFactors = this._isSuccessFactorsSource();
 			var aSelectDefaults = this._splitQueryList(this._findParamValue("pulse.selectQuery"));
 			var aExpandDefaults = this._splitQueryList(this._findParamValue("pulse.expandQuery"));
 			this._seedPulseAdvancedSelections(aSelectDefaults, aExpandDefaults);
@@ -1076,6 +1095,7 @@ sap.ui.define([
 			}).addStyleClass("ipPulseDebugBox");
 
 			var oEdmxTools = new VBox({
+				visible: bSourceIsSuccessFactors,
 				items: [
 					new HBox({
 						alignItems: "Center",
@@ -1197,7 +1217,7 @@ sap.ui.define([
 			this.getView().addDependent(oDialog);
 			oDialog.open();
 			var oCachedOptions = this._getCachedEdmxOptions(sResourcePath);
-			if (oCachedOptions) {
+			if (bSourceIsSuccessFactors && oCachedOptions) {
 				this._applyEdmxOptionsToDialog(oCachedOptions, {
 					statusText: this.getText("pulseEdmxCached", [
 						oCachedOptions.rootEntity,
@@ -1231,6 +1251,7 @@ sap.ui.define([
 
 		onParamChange: function () {
 			this._recomputeDirty();
+			this._updateStandardFeatureFlags();
 		},
 
 		_createScheduleOptions: function () {
@@ -1477,6 +1498,10 @@ sap.ui.define([
 		},
 
 		onDeployImmediately: function () {
+			if (!this.getModel("detailView").getProperty("/immediateRunSupported")) {
+				MessageToast.show(this.getText("deployImmediatelyUnsupported"));
+				return;
+			}
 			var oIntegration = this.getModel("integration").getData() || {};
 			var sName = oIntegration.name || oIntegration.id || this._sId;
 			this._openPulseRunDialog(oIntegration, sName);

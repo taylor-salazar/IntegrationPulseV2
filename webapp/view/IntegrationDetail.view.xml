@@ -300,6 +300,7 @@
 					text="{i18n>deployImmediately}"
 					type="Default"
 					icon="sap-icon://media-play"
+					visible="{detailView>/immediateRunSupported}"
 					press=".onDeployImmediately"/>
 				<Button
 					text="{i18n>deploy}"

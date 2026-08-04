@@ -117,6 +117,11 @@ externalized parameters when it is blank. The normal `Deploy` button does not
 set this value; it only saves/deploys the integration and lets the iFlow's own
 Groovy logic manage the query.
 
+Immediate-run behavior is controlled by standardized externalized parameters:
+`pulse.immediateRunSupported=true` shows the Run Immediately action, and
+`pulse.Source=SuccessFactors` shows the EDMX metadata upload option inside the
+run dialog. Integrations without those values keep the regular Deploy flow only.
+
 For the HTTPS sender address, Pulse first uses the runtime artifact endpoint
 returned by Integration Suite. If the runtime API does not expose one, add an
 externalized parameter named `pulse.immediateRunEndpoint`, for example
