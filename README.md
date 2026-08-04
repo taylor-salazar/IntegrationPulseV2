@@ -91,7 +91,7 @@ branch and a `live` branch; the live branches are marked `>>> PLACEHOLDER <<<`.
 | Get parameters | `get_configurations` | `GET /IntegrationDesigntimeArtifacts(Id='..',Version='..')/Configurations` |
 | Save parameters | `update_configurations` | `PUT .../$links/Configurations('key')` |
 | Deploy | `deploy_integration` | `POST /DeployIntegrationDesigntimeArtifact` |
-| Deploy Immediately | `trigger_immediate_run` | `POST <tenant runtime root>/<HTTPS sender endpoint>` |
+| Run Immediately | `trigger_immediate_run` | `POST <tenant runtime root>/<HTTPS sender endpoint>` |
 | Runtime status | `list_monitoring` | `GET /IntegrationRuntimeArtifacts` |
 | Message logs | `get_message_logs` | `GET /MessageProcessingLogs?$filter=…` |
 | OAuth token | `auth.get_access_token` | `POST {oauth_token_url}` (client-credentials) |
@@ -99,7 +99,7 @@ branch and a `live` branch; the live branches are marked `>>> PLACEHOLDER <<<`.
 The frontend never changes when you go live — it only talks to the proxy via
 `webapp/service/BackendClient.js`.
 
-`Deploy Immediately` is intentionally separate from redeploying the artifact. It
+`Run Immediately` is intentionally separate from redeploying the artifact. It
 calls the selected integration's HTTPS sender endpoint, such as `/http/...`, so
 the timer parameter stays unchanged. In destination mode, route `/http` to the
 same Integration Suite destination. In proxy mode, the backend derives the tenant
@@ -121,7 +121,7 @@ For the HTTPS sender address, Pulse first uses the runtime artifact endpoint
 returned by Integration Suite. If the runtime API does not expose one, add an
 externalized parameter named `pulse.immediateRunEndpoint`, for example
 `/http/IntegrationPulse/IPEndpointTest`, and Pulse will use that value for
-`Deploy Immediately`. If the value is entered as `/IntegrationPulse/...`, Pulse
+`Run Immediately`. If the value is entered as `/IntegrationPulse/...`, Pulse
 normalizes it to `/http/IntegrationPulse/...` before calling Integration Suite.
 
 The immediate-run dialog can also upload a SuccessFactors EDMX metadata file
