@@ -365,10 +365,11 @@ sap.ui.define([
 
 		_getPulseRunOptionsFromDialog: function () {
 			var sEntity = this._getSfResourcePath();
+			var sGeneratedQuery = this._buildPulseGeneratedQuery();
 			return {
 				entity: sEntity,
 				endpoint: this._getImmediateRunEndpoint(),
-				pulseQuery: this._buildPulseGeneratedQuery()
+				pulseQuery: this._isPulseQueryUnchanged(sGeneratedQuery) ? "" : sGeneratedQuery
 			};
 		},
 
@@ -437,15 +438,11 @@ sap.ui.define([
 			return sBaseFilter || sAddedFilter || "";
 		},
 
-		_buildPulseGeneratedQuery: function () {
+		_formatPulseQueryParts: function (oQuery) {
 			var aParts = [];
-			var oMerged = this._mergePulseQueryValues();
-			var sSelectQuery = this._joinQueryList(oMerged.select);
-			var sExpandQuery = this._joinQueryList(oMerged.expand);
-			var sFilterQuery = this._combinePulseFilterQuery(
-				this._oPulseBaseQuery && this._oPulseBaseQuery.filter,
-				this._buildPulseFilterQuery()
-			);
+			var sSelectQuery = this._joinQueryList(oQuery.select || []);
+			var sExpandQuery = this._joinQueryList(oQuery.expand || []);
+			var sFilterQuery = String(oQuery.filter || "").trim();
 			if (sSelectQuery) {
 				aParts.push("$select=" + sSelectQuery);
 			}
@@ -456,6 +453,24 @@ sap.ui.define([
 				aParts.push("$filter=" + sFilterQuery);
 			}
 			return aParts.join("&");
+		},
+
+		_buildPulseGeneratedQuery: function () {
+			var oMerged = this._mergePulseQueryValues();
+			return this._formatPulseQueryParts({
+				select: oMerged.select,
+				expand: oMerged.expand,
+				filter: this._combinePulseFilterQuery(
+					this._oPulseBaseQuery && this._oPulseBaseQuery.filter,
+					this._buildPulseFilterQuery()
+				)
+			});
+		},
+
+		_isPulseQueryUnchanged: function (sGeneratedQuery) {
+			var sGeneratedNormalized = this._formatPulseQueryParts(this._parsePulseQuery(sGeneratedQuery));
+			var sBaseNormalized = this._formatPulseQueryParts(this._oPulseBaseQuery || this._parsePulseQuery(""));
+			return sGeneratedNormalized === sBaseNormalized;
 		},
 
 		_formatPulseGeneratedQuery: function () {

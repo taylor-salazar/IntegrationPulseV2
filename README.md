@@ -113,11 +113,12 @@ that baseline, disables fields/navs that are already present, and only lets the
 user add to it. The generated immediate-run query is sent to CPI as
 `filter.pulseQuery`, `filter-pulseQuery`, and `X-Pulse-Query` headers for
 testing. It always includes the original `filter.query` select/expand/filter
-parts plus any added Pulse fields and filters. The iFlow can later copy that
-header into the `filter.pulseQuery` exchange property and use Groovy logic to set
-`filter.SFQuery`. The normal `Deploy` button does not set this value; it only
-saves/deploys the integration and lets the iFlow's own Groovy logic manage the
-query.
+parts plus any added Pulse fields and filters. If the user makes no changes,
+Pulse sends no Pulse query header, allowing the iFlow to keep using the original
+`filter.query`. The iFlow can later copy that header into the `filter.pulseQuery`
+exchange property and use Groovy logic to set `filter.SFQuery`. The normal
+`Deploy` button does not set this value; it only saves/deploys the integration
+and lets the iFlow's own Groovy logic manage the query.
 
 Immediate-run behavior is controlled by standardized externalized parameters:
 `pulse.immediateRunSupported=true` shows the Run Immediately action, and
