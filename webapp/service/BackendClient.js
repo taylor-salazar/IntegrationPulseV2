@@ -488,10 +488,10 @@ sap.ui.define([
 			mHeaders["pulse.entity"] = oRunOptions.entity;
 			mHeaders["X-Pulse-Entity"] = oRunOptions.entity;
 		}
-		if (oRunOptions.filterQuery) {
-			mHeaders["filter.query"] = oRunOptions.filterQuery;
-			mHeaders["filter-query"] = oRunOptions.filterQuery;
-			mHeaders["X-Pulse-Filter-Query"] = oRunOptions.filterQuery;
+		if (oRunOptions.pulseQuery) {
+			mHeaders["filter.pulseQuery"] = oRunOptions.pulseQuery;
+			mHeaders["filter-pulseQuery"] = oRunOptions.pulseQuery;
+			mHeaders["X-Pulse-Query"] = oRunOptions.pulseQuery;
 		}
 		return fetch(sUrl, {
 			method: "POST",

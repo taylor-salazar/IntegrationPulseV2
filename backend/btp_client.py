@@ -252,7 +252,7 @@ async def trigger_immediate_run(
     integration_id: str,
     endpoint: str | None = None,
     entity: str = "",
-    filter_query: str = "",
+    pulse_query: str = "",
 ) -> ImmediateRunResponse:
     # This calls the separate HTTPS sender endpoint for the iFlow. It does not
     # update configurations, redeploy the artifact, or modify timer parameters.
@@ -279,10 +279,10 @@ async def trigger_immediate_run(
     if entity:
         headers["pulse.entity"] = entity
         headers["X-Pulse-Entity"] = entity
-    if filter_query:
-        headers["filter.query"] = filter_query
-        headers["filter-query"] = filter_query
-        headers["X-Pulse-Filter-Query"] = filter_query
+    if pulse_query:
+        headers["filter.pulseQuery"] = pulse_query
+        headers["filter-pulseQuery"] = pulse_query
+        headers["X-Pulse-Query"] = pulse_query
     async with httpx.AsyncClient(timeout=120) as client:
         resp = await client.post(
             _join_runtime_endpoint(resolved_endpoint),

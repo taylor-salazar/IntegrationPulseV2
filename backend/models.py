@@ -57,6 +57,7 @@ class ImmediateRunRequest(BaseModel):
     endpoint: Optional[str] = None
     entity: str = ""
     filterQuery: str = ""
+    pulseQuery: str = ""
 
 
 class ImmediateRunResponse(BaseModel):

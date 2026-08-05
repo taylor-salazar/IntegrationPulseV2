@@ -58,5 +58,5 @@ async def trigger_immediate_run(integration_id: str, body: ImmediateRunRequest):
         integration_id,
         body.endpoint,
         entity=body.entity,
-        filter_query=body.filterQuery,
+        pulse_query=body.pulseQuery or body.filterQuery,
     )

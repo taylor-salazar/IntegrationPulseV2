@@ -368,15 +368,84 @@ sap.ui.define([
 			return {
 				entity: sEntity,
 				endpoint: this._getImmediateRunEndpoint(),
-				filterQuery: this._buildPulseGeneratedQuery()
+				pulseQuery: this._buildPulseGeneratedQuery()
 			};
+		},
+
+		_decodePulseQueryPart: function (sValue) {
+			var sText = String(sValue || "").replace(/\+/g, " ");
+			try {
+				return decodeURIComponent(sText);
+			} catch (e) {
+				return sText;
+			}
+		},
+
+		_parsePulseQuery: function (sQuery) {
+			var oParsed = {
+				select: [],
+				expand: [],
+				filter: ""
+			};
+			String(sQuery || "").replace(/^\?/, "").split("&").forEach(function (sPair) {
+				var iEquals = sPair.indexOf("=");
+				if (iEquals < 0) {
+					return;
+				}
+				var sKey = this._decodePulseQueryPart(sPair.slice(0, iEquals)).replace(/^\$/, "");
+				var sValue = this._decodePulseQueryPart(sPair.slice(iEquals + 1));
+				if (sKey === "select") {
+					oParsed.select = oParsed.select.concat(this._splitQueryList(sValue));
+				} else if (sKey === "expand") {
+					oParsed.expand = oParsed.expand.concat(this._splitQueryList(sValue));
+				} else if (sKey === "filter" && sValue) {
+					oParsed.filter = oParsed.filter ? oParsed.filter + " and " + sValue : sValue;
+				}
+			}.bind(this));
+			oParsed.select = this._splitQueryList(this._joinQueryList(oParsed.select));
+			oParsed.expand = this._splitQueryList(this._joinQueryList(oParsed.expand));
+			return oParsed;
+		},
+
+		_indexPulseQueryValues: function (aValues) {
+			var mValues = {};
+			(aValues || []).forEach(function (sValue) {
+				if (sValue) {
+					mValues[sValue] = true;
+				}
+			});
+			return mValues;
+		},
+
+		_mergePulseQueryValues: function () {
+			var aSelect = (this._oPulseBaseQuery && this._oPulseBaseQuery.select || []).concat(
+				this._splitQueryList(this._oPulseSelectTextArea ? this._oPulseSelectTextArea.getValue() : "")
+			);
+			var aExpand = (this._oPulseBaseQuery && this._oPulseBaseQuery.expand || []).concat(
+				this._splitQueryList(this._oPulseExpandTextArea ? this._oPulseExpandTextArea.getValue() : "")
+			);
+			return {
+				select: this._splitQueryList(this._joinQueryList(aSelect)),
+				expand: this._splitQueryList(this._joinQueryList(aExpand))
+			};
+		},
+
+		_combinePulseFilterQuery: function (sBaseFilter, sAddedFilter) {
+			if (sBaseFilter && sAddedFilter) {
+				return "(" + sBaseFilter + ") and (" + sAddedFilter + ")";
+			}
+			return sBaseFilter || sAddedFilter || "";
 		},
 
 		_buildPulseGeneratedQuery: function () {
 			var aParts = [];
-			var sSelectQuery = this._oPulseSelectTextArea ? this._oPulseSelectTextArea.getValue().trim() : "";
-			var sExpandQuery = this._oPulseExpandTextArea ? this._oPulseExpandTextArea.getValue().trim() : "";
-			var sFilterQuery = this._buildPulseFilterQuery();
+			var oMerged = this._mergePulseQueryValues();
+			var sSelectQuery = this._joinQueryList(oMerged.select);
+			var sExpandQuery = this._joinQueryList(oMerged.expand);
+			var sFilterQuery = this._combinePulseFilterQuery(
+				this._oPulseBaseQuery && this._oPulseBaseQuery.filter,
+				this._buildPulseFilterQuery()
+			);
 			if (sSelectQuery) {
 				aParts.push("$select=" + sSelectQuery);
 			}
@@ -402,32 +471,41 @@ sap.ui.define([
 		_syncPulseTextAreasFromPickers: function () {
 			if (this._oPulseSelectTextArea && this._oPulseSelectPicker) {
 				this._oPulseSelectTextArea.setValue(this._joinQueryList(
-					this._oPulseSelectPicker.getSelectedKeys().concat(Object.keys(this._mPulseAdvancedSelect || {}))
+					(this._oPulseBaseQuery && this._oPulseBaseQuery.select || [])
+						.concat(this._oPulseSelectPicker.getSelectedKeys())
+						.concat(Object.keys(this._mPulseAdvancedSelect || {}))
 				));
 			}
 			if (this._oPulseExpandTextArea) {
-				this._oPulseExpandTextArea.setValue(this._joinQueryList(Object.keys(this._mPulseAdvancedExpand || {})));
+				this._oPulseExpandTextArea.setValue(this._joinQueryList(
+					(this._oPulseBaseQuery && this._oPulseBaseQuery.expand || [])
+						.concat(Object.keys(this._mPulseAdvancedExpand || {}))
+				));
 			}
 			this._syncPulseFilterFieldOptions();
 			this._refreshPulseDebugQuery();
 		},
 
-		_setPulsePickerItems: function (oPicker, aFields, aSelected) {
+		_setPulsePickerItems: function (oPicker, aFields, aSelected, mDisabled) {
 			oPicker.removeAllItems();
 			(aFields || []).forEach(function (oField) {
-				oPicker.addItem(new Item({ key: oField.key, text: oField.text + " (" + oField.key + ")" }));
+				oPicker.addItem(new Item({
+					key: oField.key,
+					text: oField.text + " (" + oField.key + ")",
+					enabled: !mDisabled || !mDisabled[oField.key]
+				}));
 			});
 			oPicker.setSelectedKeys(aSelected || []);
 		},
 
-		_createPulseFieldPicker: function (aFields, aSelected, sPlaceholder) {
+		_createPulseFieldPicker: function (aFields, aSelected, sPlaceholder, mDisabled) {
 			var oPicker = new MultiComboBox({
 				width: "100%",
 				placeholder: sPlaceholder,
 				selectedKeys: aSelected,
 				selectionFinish: this._syncPulseTextAreasFromPickers.bind(this)
 			});
-			this._setPulsePickerItems(oPicker, aFields, aSelected);
+			this._setPulsePickerItems(oPicker, aFields, aSelected, mDisabled);
 			return oPicker;
 		},
 
@@ -435,19 +513,9 @@ sap.ui.define([
 			return !String(sPath || "").includes("/") && !!mCommonSelectFields[sPath];
 		},
 
-		_seedPulseAdvancedSelections: function (aSelectDefaults, aExpandDefaults) {
+		_seedPulseAdvancedSelections: function () {
 			this._mPulseAdvancedSelect = {};
 			this._mPulseAdvancedExpand = {};
-			(aSelectDefaults || []).forEach(function (sPath) {
-				if (!this._isCommonSelectField(sPath)) {
-					this._mPulseAdvancedSelect[sPath] = true;
-				}
-			}.bind(this));
-			(aExpandDefaults || []).forEach(function (sPath) {
-				if (sPath) {
-					this._mPulseAdvancedExpand[sPath] = true;
-				}
-			}.bind(this));
 		},
 
 		_getPulseImmediateChildren: function (sBasePath) {
@@ -507,6 +575,9 @@ sap.ui.define([
 
 		_createPulseAdvancedRow: function (oNode, iLevel) {
 			var oChildren = new VBox({ visible: false }).addStyleClass("ipPulseAdvancedChildren");
+			var bBaseSelected = oNode.nav ?
+				!!(this._mPulseBaseExpand && this._mPulseBaseExpand[oNode.path]) :
+				!!(this._mPulseBaseSelect && this._mPulseBaseSelect[oNode.path]);
 			var oToggle = new Button({
 				icon: oNode.nav ? "sap-icon://navigation-right-arrow" : "",
 				type: "Transparent",
@@ -514,7 +585,8 @@ sap.ui.define([
 				width: "2rem"
 			}).addStyleClass("ipPulseTreeToggle");
 			var oCheckbox = new CheckBox({
-				selected: oNode.nav ? !!this._mPulseAdvancedExpand[oNode.path] : !!this._mPulseAdvancedSelect[oNode.path],
+				selected: bBaseSelected || (oNode.nav ? !!this._mPulseAdvancedExpand[oNode.path] : !!this._mPulseAdvancedSelect[oNode.path]),
+				enabled: !bBaseSelected,
 				select: function (oEvent) {
 					this._setPulseAdvancedSelection(oNode.path, oNode.nav, oEvent.getParameter("selected"));
 				}.bind(this)
@@ -1033,25 +1105,27 @@ sap.ui.define([
 		_openPulseRunDialog: function (oIntegration, sName) {
 			var sResourcePath = this._getSfResourcePath();
 			var bSourceIsSuccessFactors = this._isSuccessFactorsSource();
-			var aSelectDefaults = this._splitQueryList(this._findParamValue("pulse.selectQuery"));
-			var aExpandDefaults = this._splitQueryList(this._findParamValue("pulse.expandQuery"));
-			this._seedPulseAdvancedSelections(aSelectDefaults, aExpandDefaults);
+			this._oPulseBaseQuery = this._parsePulseQuery(this._findParamValue("filter.query"));
+			this._mPulseBaseSelect = this._indexPulseQueryValues(this._oPulseBaseQuery.select);
+			this._mPulseBaseExpand = this._indexPulseQueryValues(this._oPulseBaseQuery.expand);
+			this._seedPulseAdvancedSelections();
 			this._oPulseSelectPicker = this._createPulseFieldPicker(
 				SF_SELECT_FIELDS,
-				aSelectDefaults.filter(this._isCommonSelectField),
-				this.getText("pulseSelectPlaceholder")
+				this._oPulseBaseQuery.select.filter(this._isCommonSelectField),
+				this.getText("pulseSelectPlaceholder"),
+				this._mPulseBaseSelect
 			);
 			this._oPulseSelectTextArea = new TextArea({
 				width: "100%",
 				rows: 3,
-				value: this._joinQueryList(aSelectDefaults),
+				value: this._joinQueryList(this._oPulseBaseQuery.select),
 				placeholder: "userId,personIdExternal,firstName,lastName",
 				liveChange: this._refreshPulseDebugQuery.bind(this)
 			});
 			this._oPulseExpandTextArea = new TextArea({
 				width: "100%",
 				rows: 3,
-				value: this._joinQueryList(aExpandDefaults),
+				value: this._joinQueryList(this._oPulseBaseQuery.expand),
 				placeholder: "employmentNav,personNav,emailNav",
 				liveChange: this._refreshPulseDebugQuery.bind(this)
 			});
@@ -1212,6 +1286,9 @@ sap.ui.define([
 					this._oPulseDebugTextArea = null;
 					this._oPulseDebugBox = null;
 					this._oPulseEdmxStatus = null;
+					this._oPulseBaseQuery = null;
+					this._mPulseBaseSelect = null;
+					this._mPulseBaseExpand = null;
 				}.bind(this)
 			});
 			this.getView().addDependent(oDialog);
