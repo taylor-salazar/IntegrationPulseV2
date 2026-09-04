@@ -149,6 +149,7 @@ sap.ui.define([
 			name: oRaw.Name || oRaw.name || oRaw.Id || oRaw.id || "",
 			designTimeId: oRaw.IntegrationDesigntimeArtifactId || oRaw.DesigntimeArtifactId ||
 				oRaw.DesignTimeArtifactId || oRaw.ArtifactId || oRaw.Name || oRaw.Id || oRaw.id || "",
+			designTimeVersion: oRaw.IntegrationDesigntimeArtifactVersion || oRaw.designTimeVersion || "",
 			isRuntimeArtifact: oRaw.isRuntimeArtifact !== false,
 			sender: oRaw.Sender || oRaw.sender || oRaw.SourceSystem || oRaw.sourceSystem || oRaw.Source || oRaw.source || "",
 			receiver: oRaw.Receiver || oRaw.receiver || oRaw.TargetSystem || oRaw.targetSystem || oRaw.Target || oRaw.target || "",
@@ -405,8 +406,28 @@ sap.ui.define([
 		});
 	}
 
-	function getDestinationConfigurations(sId) {
-		return tryGetConfigurations([sId], "Active", 0);
+	function tryGetConfigurationsForVersions(aCandidates, aVersions, iVersionIndex) {
+		if (iVersionIndex >= aVersions.length) {
+			return Promise.reject(new Error("Integration design time artifact not found"));
+		}
+		return tryGetConfigurations(aCandidates, aVersions[iVersionIndex], 0).catch(function () {
+			return tryGetConfigurationsForVersions(aCandidates, aVersions, iVersionIndex + 1);
+		});
+	}
+
+	function getDestinationConfigurations(sId, oIntegration) {
+		var fnWithIntegration = function (oResolvedIntegration) {
+			var oItem = oResolvedIntegration || oIntegration || {};
+			return tryGetConfigurationsForVersions(
+				getDesignTimeIdCandidates(sId, oItem),
+				getDesignTimeVersionCandidates(oItem),
+				0
+			);
+		};
+		if (oIntegration) {
+			return fnWithIntegration(oIntegration);
+		}
+		return getDestinationIntegration(sId).then(fnWithIntegration);
 	}
 
 	function updateDestinationConfigurations(sId, aConfigurations) {
@@ -590,7 +611,7 @@ sap.ui.define([
 		 * Destination live: GET /api/v1/IntegrationDesigntimeArtifacts(...)/Configurations
 		 * Proxy live: GET {backend}/api/integrations/{id}/configurations
 		 */
-		getConfigurations: function (sId) {
+		getConfigurations: function (sId, oIntegration) {
 			if (USE_MOCK) {
 				return getJSON(MOCK_ROOT + "/configurations.json").then(function (d) {
 					return delay(250).then(function () {
@@ -599,7 +620,7 @@ sap.ui.define([
 				});
 			}
 			if (LIVE_MODE === "destination") {
-				return getDestinationConfigurations(sId);
+				return getDestinationConfigurations(sId, oIntegration);
 			}
 			return getJSON(config.backendBaseUrl + "/api/integrations/" + encodeURIComponent(sId) + "/configurations");
 		},

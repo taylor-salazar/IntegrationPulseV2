@@ -71,6 +71,53 @@ def _odata_results(data: dict) -> List[dict]:
     return data.get("d", {}).get("results", [])
 
 
+def _unique_values(values: List[str]) -> List[str]:
+    seen = set()
+    unique = []
+    for value in values:
+        text = str(value or "").strip()
+        if text and text not in seen:
+            seen.add(text)
+            unique.append(text)
+    return unique
+
+
+async def _design_time_candidates(integration_id: str) -> tuple[List[str], List[str]]:
+    item = await get_integration(integration_id)
+    ids = _unique_values(
+        [
+            item.designTimeId if item else "",
+            integration_id,
+            item.name if item else "",
+        ]
+    )
+    versions = _unique_values(
+        [
+            "Active",
+            "active",
+            item.designTimeVersion if item else "",
+            item.version if item else "",
+        ]
+    )
+    return ids, versions
+
+
+async def _resolve_design_time_identity(integration_id: str) -> tuple[str, str]:
+    ids, versions = await _design_time_candidates(integration_id)
+    for candidate_id in ids:
+        for version in versions:
+            path = (
+                f"/IntegrationDesigntimeArtifacts(Id={_odata_literal(candidate_id)},"
+                f"Version={_odata_literal(version)})"
+            )
+            try:
+                await _is_get(path)
+                return candidate_id, version
+            except httpx.HTTPStatusError:
+                continue
+    return integration_id, "Active"
+
+
 # --------------------------------------------------------------------------- #
 # Integrations
 # --------------------------------------------------------------------------- #
@@ -85,6 +132,14 @@ async def list_integrations() -> List[Integration]:
         Integration(
             id=r.get("Id", ""),
             name=r.get("Name", r.get("Id", "")),
+            designTimeId=(
+                r.get("IntegrationDesigntimeArtifactId")
+                or r.get("DesigntimeArtifactId")
+                or r.get("DesignTimeArtifactId")
+                or r.get("ArtifactId")
+                or ""
+            ),
+            designTimeVersion=r.get("IntegrationDesigntimeArtifactVersion", "") or "",
             packageName=r.get("PackageId", ""),
             version=r.get("Version", ""),
             status=r.get("Status", "STOPPED"),
@@ -113,14 +168,24 @@ async def get_configurations(integration_id: str) -> List[Configuration]:
         raw = _load_mock("configurations.json").get(integration_id, [])
         return [Configuration(**o) for o in raw]
 
-    # >>> PLACEHOLDER: GET .../IntegrationDesigntimeArtifacts(Id='..',Version='Active')/Configurations <<<
-    version = "Active"
-    path = (
-        f"/IntegrationDesigntimeArtifacts(Id={_odata_literal(integration_id)},"
-        f"Version={_odata_literal(version)})"
-        f"/Configurations"
-    )
-    data = await _is_get(path)
+    ids, versions = await _design_time_candidates(integration_id)
+    data = None
+    for candidate_id in ids:
+        for version in versions:
+            path = (
+                f"/IntegrationDesigntimeArtifacts(Id={_odata_literal(candidate_id)},"
+                f"Version={_odata_literal(version)})"
+                f"/Configurations"
+            )
+            try:
+                data = await _is_get(path)
+                break
+            except httpx.HTTPStatusError:
+                continue
+        if data is not None:
+            break
+    if data is None:
+        raise RuntimeError("Integration design time artifact not found")
     results = data.get("d", {}).get("results", [])
     return [
         Configuration(
@@ -142,7 +207,7 @@ async def update_configurations(
     if not updates:
         return {"id": integration_id, "updated": 0}
 
-    version = "Active"
+    design_time_id, version = await _resolve_design_time_identity(integration_id)
     batch_boundary = "batch_integration_pulse"
     changeset_boundary = "all_parameters"
     lines = [
@@ -152,7 +217,7 @@ async def update_configurations(
     ]
     for upd in updates:
         path = (
-            f"IntegrationDesigntimeArtifacts(Id={_odata_literal(integration_id)},"
+            f"IntegrationDesigntimeArtifacts(Id={_odata_literal(design_time_id)},"
             f"Version={_odata_literal(version)})/$links/Configurations"
             f"({_odata_literal(upd.key)})"
         )
@@ -216,10 +281,10 @@ async def deploy_integration(
         )
 
     # >>> PLACEHOLDER: POST /DeployIntegrationDesigntimeArtifact for the selected artifact only <<<
-    version = "Active"
+    design_time_id, version = await _resolve_design_time_identity(integration_id)
     token = await get_access_token()
     path = (
-        f"/DeployIntegrationDesigntimeArtifact?Id={_odata_literal(integration_id)}"
+        f"/DeployIntegrationDesigntimeArtifact?Id={_odata_literal(design_time_id)}"
         f"&Version={_odata_literal(version)}"
     )
     async with httpx.AsyncClient(timeout=120) as client:

@@ -13,6 +13,8 @@ from pydantic import BaseModel, Field
 class Integration(BaseModel):
     id: str
     name: str
+    designTimeId: str = ""
+    designTimeVersion: str = ""
     packageName: str = ""
     version: str = ""
     status: str = "STOPPED"

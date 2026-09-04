@@ -216,18 +216,27 @@ sap.ui.define([
 			this._load();
 		},
 
+		_getConfigurationArtifactId: function () {
+			return this.getModel("integration").getProperty("/designTimeId") || this._sId;
+		},
+
 		_load: function () {
 			var that = this;
 			this.getModel("detailView").setProperty("/dirty", false);
 			this.getView().setModel(this.getModel("detailView"));
 			this.getModel("detailView").setProperty("/busy", true);
 
-			Promise.all([
-				BackendClient.getIntegration(this._sId),
-				BackendClient.getConfigurations(this._sId)
-			]).then(function (aRes) {
-				var oIntegration = aRes[0] || {};
-				var aConfigs = aRes[1] || [];
+			BackendClient.getIntegration(this._sId).then(function (oIntegration) {
+				oIntegration = oIntegration || {};
+				return BackendClient.getConfigurations(this._sId, oIntegration).then(function (aConfigs) {
+					return {
+						integration: oIntegration,
+						configurations: aConfigs || []
+					};
+				});
+			}.bind(this)).then(function (oRes) {
+				var oIntegration = oRes.integration || {};
+				var aConfigs = oRes.configurations || [];
 				that.getModel("integration").setData(oIntegration);
 				that.getModel("parameters").setData({ groups: that._groupParams(aConfigs) });
 				that._updateStandardFeatureFlags();
@@ -1556,7 +1565,7 @@ sap.ui.define([
 		onSaveDraft: function () {
 			var that = this;
 			this.getModel("detailView").setProperty("/busy", true);
-			BackendClient.updateConfigurations(this._sId, this._collectParams()).then(function () {
+			BackendClient.updateConfigurations(this._getConfigurationArtifactId(), this._collectParams()).then(function () {
 				// Saved values become the new pristine baseline.
 				var oModel = that.getModel("parameters");
 				var aGroups = oModel.getProperty("/groups") || [];
@@ -1616,7 +1625,7 @@ sap.ui.define([
 			var that = this;
 			this.getModel("detailView").setProperty("/busy", true);
 			MessageToast.show(this.getText("deployStarted", [sName]));
-			BackendClient.deployIntegration(this._sId, this._collectParams()).then(function (oRes) {
+			BackendClient.deployIntegration(this._getConfigurationArtifactId(), this._collectParams()).then(function (oRes) {
 				that.getModel("detailView").setProperty("/busy", false);
 				that.getModel("detailView").setProperty("/dirty", false);
 				// Saved values become pristine after a successful deploy.
