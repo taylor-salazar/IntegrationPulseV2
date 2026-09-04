@@ -68,7 +68,11 @@ sap.ui.define([
 		}).then(function (res) {
 			if (!res.ok) {
 				return res.text().then(function (t) {
-					throw new Error(t || (res.status + " " + res.statusText));
+					var oError = new Error(t || (res.status + " " + res.statusText));
+					oError.status = res.status;
+					oError.statusText = res.statusText;
+					oError.url = sUrl;
+					throw oError;
 				});
 			}
 			return res.json();
@@ -288,6 +292,7 @@ sap.ui.define([
 
 	function getDesignTimeVersionCandidates(oIntegration) {
 		return uniqueValues([
+			oIntegration && oIntegration.designTimeVersion,
 			"Active",
 			"active",
 			oIntegration && oIntegration.version
@@ -499,23 +504,37 @@ sap.ui.define([
 		});
 	}
 
-	function tryGetConfigurations(aCandidates, sVersion, iIndex) {
-		if (iIndex >= aCandidates.length) {
-			return Promise.reject(new Error("Integration design time artifact not found"));
-		}
-		return getConfigurationsForCandidate(aCandidates[iIndex], sVersion).catch(function () {
-			return tryGetConfigurations(aCandidates, sVersion, iIndex + 1);
-		});
-	}
-
-	function tryGetConfigurationsForVersions(aCandidates, aVersions, iVersionIndex) {
-		if (iVersionIndex >= aVersions.length) {
-			return Promise.reject(new Error("Integration design time artifact not found. Tried IDs: " +
-				(aCandidates || []).join(", ") + "; versions: " + (aVersions || []).join(", ")));
-		}
-		return tryGetConfigurations(aCandidates, aVersions[iVersionIndex], 0).catch(function () {
-			return tryGetConfigurationsForVersions(aCandidates, aVersions, iVersionIndex + 1);
-		});
+	function tryGetConfigurationsForVersions(aCandidates, aVersions) {
+		var aAttempts = [];
+		var iIdIndex = 0;
+		var iVersionIndex = 0;
+		var fnTryNext = function () {
+			if (iVersionIndex >= aVersions.length) {
+				var oLastAttempt = aAttempts[aAttempts.length - 1];
+				var oLastError = oLastAttempt && oLastAttempt.error;
+				var sLastResponse = oLastError && [
+					oLastError.status ? String(oLastError.status) : "",
+					oLastError.statusText || "",
+					oLastError.url ? "for " + oLastError.url : "",
+					oLastError.message || ""
+				].filter(Boolean).join(" ");
+				return Promise.reject(new Error("Integration design time artifact not found. Tried IDs: " +
+					(aCandidates || []).join(", ") + "; versions: " + (aVersions || []).join(", ") +
+					(sLastResponse ? "; last response: " + sLastResponse : "")));
+			}
+			var sId = aCandidates[iIdIndex];
+			var sVersion = aVersions[iVersionIndex];
+			return getConfigurationsForCandidate(sId, sVersion).catch(function (oError) {
+				aAttempts.push({ id: sId, version: sVersion, error: oError });
+				iIdIndex += 1;
+				if (iIdIndex >= aCandidates.length) {
+					iIdIndex = 0;
+					iVersionIndex += 1;
+				}
+				return fnTryNext();
+			});
+		};
+		return fnTryNext();
 	}
 
 	function tryResolveDesignTimeIdentity(aIds, aVersions, iIdIndex, iVersionIndex) {
@@ -561,11 +580,10 @@ sap.ui.define([
 			var oItem = oResolvedIntegration || oIntegration || {};
 			return tryGetConfigurationsForVersions(
 				getDesignTimeIdCandidates(sId, oItem),
-				getDesignTimeVersionCandidates(oItem),
-				0
+				getDesignTimeVersionCandidates(oItem)
 			).catch(function () {
 				return getFallbackConfigurationCandidates(sId, oItem).then(function (oCandidates) {
-					return tryGetConfigurationsForVersions(oCandidates.ids, oCandidates.versions, 0);
+					return tryGetConfigurationsForVersions(oCandidates.ids, oCandidates.versions);
 				});
 			});
 		};
