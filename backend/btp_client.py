@@ -101,6 +101,18 @@ async def _design_time_matches_for_candidate(candidate: str) -> List[dict]:
     return _odata_results(data)
 
 
+async def _design_time_matches_for_package(package_id: str) -> List[dict]:
+    if not package_id:
+        return []
+    filter_expression = f"PackageId eq {_odata_filter_literal(package_id)}"
+    path = f"/IntegrationDesigntimeArtifacts?$filter={quote(filter_expression, safe='')}"
+    try:
+        data = await _is_get(path)
+    except httpx.HTTPStatusError:
+        return []
+    return _odata_results(data)
+
+
 async def _matched_design_time_items(integration_id: str, item: Integration | None) -> List[dict]:
     candidates = [
         item.designTimeId if item else "",
@@ -117,6 +129,24 @@ async def _matched_design_time_items(integration_id: str, item: Integration | No
             }
             if normalized_candidates.intersection(raw_values):
                 matches.append(raw)
+    if matches:
+        return matches
+    package_items = await _design_time_matches_for_package(item.packageName if item else "")
+    for raw in package_items:
+        raw_values = {
+            _normalize_match_value(raw.get("Id", "")),
+            _normalize_match_value(raw.get("Name", "")),
+        }
+        if any(
+            raw_value
+            and candidate
+            and (raw_value in candidate or candidate in raw_value)
+            for raw_value in raw_values
+            for candidate in normalized_candidates
+        ):
+            matches.append(raw)
+    if not matches and len(package_items) == 1:
+        matches = package_items
     return matches
 
 

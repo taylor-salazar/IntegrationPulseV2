@@ -313,6 +313,20 @@ sap.ui.define([
 			});
 	}
 
+	function getDestinationDesignTimePackageMatches(sPackageId) {
+		if (!sPackageId) {
+			return Promise.resolve([]);
+		}
+		var sFilter = "PackageId eq " + odataFilterLiteral(sPackageId);
+		return getJSON(getDestinationUrl("/IntegrationDesigntimeArtifacts?$filter=" + encodeURIComponent(sFilter)))
+			.then(function (d) {
+				return odataResults(d).map(mapDesignTimeMetadata);
+			})
+			.catch(function () {
+				return [];
+			});
+	}
+
 	function findDesignTimeMatchesForCandidates(aCandidates, iIndex, aMatches) {
 		if (iIndex >= aCandidates.length) {
 			return Promise.resolve(aMatches);
@@ -350,10 +364,35 @@ sap.ui.define([
 				aIds.push(oMatch.id);
 				aVersions.push(oMatch.designTimeVersion);
 			});
-			return {
-				ids: uniqueValues(aIds),
-				versions: uniqueValues(aVersions)
-			};
+			if (aMatches && aMatches.length) {
+				return {
+					ids: uniqueValues(aIds),
+					versions: uniqueValues(aVersions)
+				};
+			}
+			return getDestinationDesignTimePackageMatches(oIntegration && oIntegration.packageName).then(function (aPackageItems) {
+				var aNormalizedCandidates = getDesignTimeIdCandidates(sId, oIntegration).map(normalizeMatchValue);
+				var aFuzzyMatches = (aPackageItems || []).filter(function (oItem) {
+					var aItemValues = [oItem.id, oItem.name].map(normalizeMatchValue);
+					return aItemValues.some(function (sItemValue) {
+						return aNormalizedCandidates.some(function (sCandidate) {
+							return sItemValue && sCandidate &&
+								(sItemValue.indexOf(sCandidate) > -1 || sCandidate.indexOf(sItemValue) > -1);
+						});
+					});
+				});
+				if (!aFuzzyMatches.length && aPackageItems.length === 1) {
+					aFuzzyMatches = aPackageItems;
+				}
+				aFuzzyMatches.forEach(function (oMatch) {
+					aIds.push(oMatch.id);
+					aVersions.push(oMatch.designTimeVersion);
+				});
+				return {
+					ids: uniqueValues(aIds),
+					versions: uniqueValues(aVersions)
+				};
+			});
 		});
 	}
 
@@ -471,7 +510,8 @@ sap.ui.define([
 
 	function tryGetConfigurationsForVersions(aCandidates, aVersions, iVersionIndex) {
 		if (iVersionIndex >= aVersions.length) {
-			return Promise.reject(new Error("Integration design time artifact not found"));
+			return Promise.reject(new Error("Integration design time artifact not found. Tried IDs: " +
+				(aCandidates || []).join(", ") + "; versions: " + (aVersions || []).join(", ")));
 		}
 		return tryGetConfigurations(aCandidates, aVersions[iVersionIndex], 0).catch(function () {
 			return tryGetConfigurationsForVersions(aCandidates, aVersions, iVersionIndex + 1);
