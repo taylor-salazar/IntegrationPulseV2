@@ -33,7 +33,6 @@ sap.ui.define([
 	var MOCK_ROOT = sap.ui.require.toUrl("integrationpulse/localService/mockdata");
 	var DESIGN_TIME_CACHE_KEY = "integrationPulse.designTimeMetadata.v1";
 	var mDesignTimeMetadataCache = {};
-	var pDesignTimeCatalog = null;
 
 	function loadDesignTimeMetadataCache() {
 		try {
@@ -131,6 +130,10 @@ sap.ui.define([
 
 	function odataLiteral(sValue) {
 		return "'" + encodeURIComponent(odataString(sValue)) + "'";
+	}
+
+	function odataFilterLiteral(sValue) {
+		return "'" + odataString(sValue) + "'";
 	}
 
 	function odataResults(oData) {
@@ -299,23 +302,34 @@ sap.ui.define([
 		]);
 	}
 
-	function getDestinationDesignTimeCatalog() {
-		if (pDesignTimeCatalog) {
-			return pDesignTimeCatalog;
+	function getDestinationDesignTimeMatches(sCandidate) {
+		var sFilter = "Id eq " + odataFilterLiteral(sCandidate) + " or Name eq " + odataFilterLiteral(sCandidate);
+		return getJSON(getDestinationUrl("/IntegrationDesigntimeArtifacts?$filter=" + encodeURIComponent(sFilter)))
+			.then(function (d) {
+				return odataResults(d).map(mapDesignTimeMetadata);
+			})
+			.catch(function () {
+				return [];
+			});
+	}
+
+	function findDesignTimeMatchesForCandidates(aCandidates, iIndex, aMatches) {
+		if (iIndex >= aCandidates.length) {
+			return Promise.resolve(aMatches);
 		}
-		pDesignTimeCatalog = getJSON(getDestinationUrl("/IntegrationDesigntimeArtifacts")).then(function (d) {
-			return odataResults(d).map(mapDesignTimeMetadata);
-		}).catch(function (oErr) {
-			pDesignTimeCatalog = null;
-			throw oErr;
+		return getDestinationDesignTimeMatches(aCandidates[iIndex]).then(function (aItems) {
+			return findDesignTimeMatchesForCandidates(
+				aCandidates,
+				iIndex + 1,
+				aMatches.concat(aItems || [])
+			);
 		});
-		return pDesignTimeCatalog;
 	}
 
 	function findDesignTimeMatches(sId, oIntegration) {
 		var aRawCandidates = getDesignTimeIdCandidates(sId, oIntegration);
 		var aNormalizedCandidates = aRawCandidates.map(normalizeMatchValue);
-		return getDestinationDesignTimeCatalog().then(function (aDesignTimeItems) {
+		return findDesignTimeMatchesForCandidates(aRawCandidates, 0, []).then(function (aDesignTimeItems) {
 			return (aDesignTimeItems || []).filter(function (oItem) {
 				var aItemValues = [
 					oItem.id,

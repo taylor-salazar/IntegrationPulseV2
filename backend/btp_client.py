@@ -42,9 +42,6 @@ from models import (
 _MOCK_DIR = os.path.join(
     os.path.dirname(__file__), "..", "webapp", "localService", "mockdata"
 )
-_DESIGN_TIME_CATALOG_CACHE: List[dict] | None = None
-
-
 def _load_mock(name: str):
     with open(os.path.join(_MOCK_DIR, name), "r", encoding="utf-8") as fh:
         return json.load(fh)
@@ -87,12 +84,21 @@ def _normalize_match_value(value: str) -> str:
     return re.sub(r"[\s_-]+", "", str(value or "")).lower()
 
 
-async def _design_time_catalog() -> List[dict]:
-    global _DESIGN_TIME_CATALOG_CACHE
-    if _DESIGN_TIME_CATALOG_CACHE is None:
-        data = await _is_get("/IntegrationDesigntimeArtifacts")
-        _DESIGN_TIME_CATALOG_CACHE = _odata_results(data)
-    return _DESIGN_TIME_CATALOG_CACHE
+def _odata_filter_literal(value: str) -> str:
+    return "'" + str(value or "").replace("'", "''") + "'"
+
+
+async def _design_time_matches_for_candidate(candidate: str) -> List[dict]:
+    filter_expression = (
+        f"Id eq {_odata_filter_literal(candidate)} "
+        f"or Name eq {_odata_filter_literal(candidate)}"
+    )
+    path = f"/IntegrationDesigntimeArtifacts?$filter={quote(filter_expression, safe='')}"
+    try:
+        data = await _is_get(path)
+    except httpx.HTTPStatusError:
+        return []
+    return _odata_results(data)
 
 
 async def _matched_design_time_items(integration_id: str, item: Integration | None) -> List[dict]:
@@ -103,13 +109,14 @@ async def _matched_design_time_items(integration_id: str, item: Integration | No
     ]
     normalized_candidates = {_normalize_match_value(value) for value in candidates if value}
     matches = []
-    for raw in await _design_time_catalog():
-        raw_values = {
-            _normalize_match_value(raw.get("Id", "")),
-            _normalize_match_value(raw.get("Name", "")),
-        }
-        if normalized_candidates.intersection(raw_values):
-            matches.append(raw)
+    for candidate in _unique_values(candidates):
+        for raw in await _design_time_matches_for_candidate(candidate):
+            raw_values = {
+                _normalize_match_value(raw.get("Id", "")),
+                _normalize_match_value(raw.get("Name", "")),
+            }
+            if normalized_candidates.intersection(raw_values):
+                matches.append(raw)
     return matches
 
 
