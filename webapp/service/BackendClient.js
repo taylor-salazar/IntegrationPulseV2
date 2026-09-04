@@ -33,6 +33,7 @@ sap.ui.define([
 	var MOCK_ROOT = sap.ui.require.toUrl("integrationpulse/localService/mockdata");
 	var DESIGN_TIME_CACHE_KEY = "integrationPulse.designTimeMetadata.v1";
 	var mDesignTimeMetadataCache = {};
+	var pDesignTimeCatalog = null;
 
 	function loadDesignTimeMetadataCache() {
 		try {
@@ -174,6 +175,10 @@ sap.ui.define([
 		};
 	}
 
+	function normalizeMatchValue(sValue) {
+		return String(sValue || "").replace(/[\s_-]+/g, "").toLowerCase();
+	}
+
 	function runtimeArtifactsOnly(aItems) {
 		return (aItems || []).filter(function (oItem) {
 			return oItem && oItem.id && oItem.isRuntimeArtifact !== false;
@@ -292,6 +297,50 @@ sap.ui.define([
 			sId,
 			oIntegration && oIntegration.name
 		]);
+	}
+
+	function getDestinationDesignTimeCatalog() {
+		if (pDesignTimeCatalog) {
+			return pDesignTimeCatalog;
+		}
+		pDesignTimeCatalog = getJSON(getDestinationUrl("/IntegrationDesigntimeArtifacts")).then(function (d) {
+			return odataResults(d).map(mapDesignTimeMetadata);
+		}).catch(function (oErr) {
+			pDesignTimeCatalog = null;
+			throw oErr;
+		});
+		return pDesignTimeCatalog;
+	}
+
+	function findDesignTimeMatches(sId, oIntegration) {
+		var aRawCandidates = getDesignTimeIdCandidates(sId, oIntegration);
+		var aNormalizedCandidates = aRawCandidates.map(normalizeMatchValue);
+		return getDestinationDesignTimeCatalog().then(function (aDesignTimeItems) {
+			return (aDesignTimeItems || []).filter(function (oItem) {
+				var aItemValues = [
+					oItem.id,
+					oItem.name
+				].map(normalizeMatchValue);
+				return aItemValues.some(function (sValue) {
+					return aNormalizedCandidates.indexOf(sValue) > -1;
+				});
+			});
+		});
+	}
+
+	function getFallbackConfigurationCandidates(sId, oIntegration) {
+		return findDesignTimeMatches(sId, oIntegration).then(function (aMatches) {
+			var aIds = getDesignTimeIdCandidates(sId, oIntegration);
+			var aVersions = getDesignTimeVersionCandidates(oIntegration);
+			(aMatches || []).forEach(function (oMatch) {
+				aIds.push(oMatch.id);
+				aVersions.push(oMatch.designTimeVersion);
+			});
+			return {
+				ids: uniqueValues(aIds),
+				versions: uniqueValues(aVersions)
+			};
+		});
 	}
 
 	function getDesignTimeCacheKey(oIntegration) {
@@ -415,6 +464,44 @@ sap.ui.define([
 		});
 	}
 
+	function tryResolveDesignTimeIdentity(aIds, aVersions, iIdIndex, iVersionIndex) {
+		if (iIdIndex >= aIds.length) {
+			return Promise.resolve(null);
+		}
+		if (iVersionIndex >= aVersions.length) {
+			return tryResolveDesignTimeIdentity(aIds, aVersions, iIdIndex + 1, 0);
+		}
+		return getDesignTimeEntityForCandidate(aIds[iIdIndex], aVersions[iVersionIndex]).then(function (oItem) {
+			return oItem ? {
+				id: oItem.id || aIds[iIdIndex],
+				version: oItem.designTimeVersion || aVersions[iVersionIndex]
+			} : null;
+		}).catch(function () {
+			return tryResolveDesignTimeIdentity(aIds, aVersions, iIdIndex, iVersionIndex + 1);
+		});
+	}
+
+	function resolveDestinationDesignTimeIdentity(sId) {
+		return getDestinationIntegration(sId).then(function (oIntegration) {
+			var oItem = oIntegration || {};
+			var aIds = getDesignTimeIdCandidates(sId, oItem);
+			var aVersions = getDesignTimeVersionCandidates(oItem);
+			return tryResolveDesignTimeIdentity(aIds, aVersions, 0, 0).then(function (oResolved) {
+				if (oResolved) {
+					return oResolved;
+				}
+				return getFallbackConfigurationCandidates(sId, oItem).then(function (oCandidates) {
+					return tryResolveDesignTimeIdentity(oCandidates.ids, oCandidates.versions, 0, 0);
+				});
+			}).then(function (oResolved) {
+				if (!oResolved) {
+					throw new Error("Integration design time artifact not found");
+				}
+				return oResolved;
+			});
+		});
+	}
+
 	function getDestinationConfigurations(sId, oIntegration) {
 		var fnWithIntegration = function (oResolvedIntegration) {
 			var oItem = oResolvedIntegration || oIntegration || {};
@@ -422,7 +509,11 @@ sap.ui.define([
 				getDesignTimeIdCandidates(sId, oItem),
 				getDesignTimeVersionCandidates(oItem),
 				0
-			);
+			).catch(function () {
+				return getFallbackConfigurationCandidates(sId, oItem).then(function (oCandidates) {
+					return tryGetConfigurationsForVersions(oCandidates.ids, oCandidates.versions, 0);
+				});
+			});
 		};
 		if (oIntegration) {
 			return fnWithIntegration(oIntegration);
@@ -434,51 +525,55 @@ sap.ui.define([
 		if (!aConfigurations || !aConfigurations.length) {
 			return Promise.resolve({ id: sId, updated: 0 });
 		}
-		var sBatchBoundary = "batch_" + Date.now();
-		var sChangeSetBoundary = "all_parameters";
-		var aLines = [
-			"--" + sBatchBoundary,
-			"Content-Type: multipart/mixed; boundary=" + sChangeSetBoundary,
-			""
-		];
-		aConfigurations.forEach(function (oConfig) {
-			var sPath = "/IntegrationDesigntimeArtifacts(Id=" + odataLiteral(sId) +
-				",Version=" + odataLiteral("Active") + ")/$links/Configurations(" +
-				odataLiteral(oConfig.key) + ")";
+		return resolveDestinationDesignTimeIdentity(sId).then(function (oIdentity) {
+			var sBatchBoundary = "batch_" + Date.now();
+			var sChangeSetBoundary = "all_parameters";
+			var aLines = [
+				"--" + sBatchBoundary,
+				"Content-Type: multipart/mixed; boundary=" + sChangeSetBoundary,
+				""
+			];
+			aConfigurations.forEach(function (oConfig) {
+				var sPath = "/IntegrationDesigntimeArtifacts(Id=" + odataLiteral(oIdentity.id) +
+					",Version=" + odataLiteral(oIdentity.version) + ")/$links/Configurations(" +
+					odataLiteral(oConfig.key) + ")";
+				aLines = aLines.concat([
+					"--" + sChangeSetBoundary,
+					"Content-Type: application/http",
+					"Content-Transfer-Encoding: binary",
+					"",
+					"PUT " + sPath.slice(1) + " HTTP/1.1",
+					"Accept: application/json",
+					"Content-Type: application/json",
+					"",
+					JSON.stringify({
+						ParameterKey: oConfig.key,
+						ParameterValue: oConfig.value,
+						DataType: oConfig.dataType || "xsd:string"
+					}),
+					""
+				]);
+			});
 			aLines = aLines.concat([
-				"--" + sChangeSetBoundary,
-				"Content-Type: application/http",
-				"Content-Transfer-Encoding: binary",
-				"",
-				"PUT " + sPath.slice(1) + " HTTP/1.1",
-				"Accept: application/json",
-				"Content-Type: application/json",
-				"",
-				JSON.stringify({
-					ParameterKey: oConfig.key,
-					ParameterValue: oConfig.value,
-					DataType: oConfig.dataType || "xsd:string"
-				}),
+				"--" + sChangeSetBoundary + "--",
+				"--" + sBatchBoundary + "--",
 				""
 			]);
-		});
-		aLines = aLines.concat([
-			"--" + sChangeSetBoundary + "--",
-			"--" + sBatchBoundary + "--",
-			""
-		]);
-		return sendText(getDestinationUrl("/$batch"), "POST", aLines.join("\r\n"), {
-			"Accept": "application/json",
-			"Content-Type": "multipart/mixed; boundary=" + sBatchBoundary
-		}).then(function () {
-			return { id: sId, updated: aConfigurations.length };
+			return sendText(getDestinationUrl("/$batch"), "POST", aLines.join("\r\n"), {
+				"Accept": "application/json",
+				"Content-Type": "multipart/mixed; boundary=" + sBatchBoundary
+			}).then(function () {
+				return { id: sId, updated: aConfigurations.length };
+			});
 		});
 	}
 
 	function deployDestinationIntegration(sId, aConfigurations) {
 		return updateDestinationConfigurations(sId, aConfigurations).then(function () {
-			var sPath = "/DeployIntegrationDesigntimeArtifact?Id=" + odataLiteral(sId) +
-				"&Version=" + odataLiteral("Active");
+			return resolveDestinationDesignTimeIdentity(sId);
+		}).then(function (oIdentity) {
+			var sPath = "/DeployIntegrationDesigntimeArtifact?Id=" + odataLiteral(oIdentity.id) +
+				"&Version=" + odataLiteral(oIdentity.version);
 			return fetch(getDestinationUrl(sPath), {
 				method: "POST",
 				headers: { "Accept": "application/json" },

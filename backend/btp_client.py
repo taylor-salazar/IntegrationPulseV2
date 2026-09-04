@@ -42,6 +42,7 @@ from models import (
 _MOCK_DIR = os.path.join(
     os.path.dirname(__file__), "..", "webapp", "localService", "mockdata"
 )
+_DESIGN_TIME_CATALOG_CACHE: List[dict] | None = None
 
 
 def _load_mock(name: str):
@@ -82,14 +83,49 @@ def _unique_values(values: List[str]) -> List[str]:
     return unique
 
 
+def _normalize_match_value(value: str) -> str:
+    return re.sub(r"[\s_-]+", "", str(value or "")).lower()
+
+
+async def _design_time_catalog() -> List[dict]:
+    global _DESIGN_TIME_CATALOG_CACHE
+    if _DESIGN_TIME_CATALOG_CACHE is None:
+        data = await _is_get("/IntegrationDesigntimeArtifacts")
+        _DESIGN_TIME_CATALOG_CACHE = _odata_results(data)
+    return _DESIGN_TIME_CATALOG_CACHE
+
+
+async def _matched_design_time_items(integration_id: str, item: Integration | None) -> List[dict]:
+    candidates = [
+        item.designTimeId if item else "",
+        integration_id,
+        item.name if item else "",
+    ]
+    normalized_candidates = {_normalize_match_value(value) for value in candidates if value}
+    matches = []
+    for raw in await _design_time_catalog():
+        raw_values = {
+            _normalize_match_value(raw.get("Id", "")),
+            _normalize_match_value(raw.get("Name", "")),
+        }
+        if normalized_candidates.intersection(raw_values):
+            matches.append(raw)
+    return matches
+
+
 async def _design_time_candidates(integration_id: str) -> tuple[List[str], List[str]]:
     item = await get_integration(integration_id)
+    try:
+        matches = await _matched_design_time_items(integration_id, item)
+    except httpx.HTTPStatusError:
+        matches = []
     ids = _unique_values(
         [
             item.designTimeId if item else "",
             integration_id,
             item.name if item else "",
         ]
+        + [match.get("Id", "") for match in matches]
     )
     versions = _unique_values(
         [
@@ -98,6 +134,7 @@ async def _design_time_candidates(integration_id: str) -> tuple[List[str], List[
             item.designTimeVersion if item else "",
             item.version if item else "",
         ]
+        + [match.get("Version", "") for match in matches]
     )
     return ids, versions
 
