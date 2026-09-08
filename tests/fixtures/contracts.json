@@ -1,0 +1,21 @@
+{
+  "sensitiveIds": ["simple", "Space Name", "O'Brien", "100%", "a/b", "a+b", "a&b", "a?b#c", "员工 München"],
+  "runtime": {"Id":"runtime-id","Name":"Runtime Name","IntegrationDesigntimeArtifactId":"design-id","IntegrationDesigntimeArtifactVersion":"2.0","Version":"1.0","PackageId":"package-id","Status":"STARTED","Sender":"SuccessFactors","Receiver":"SAP_HCM","Endpoint":"/http/run"},
+  "design": {"Id":"design-id","Name":"Design Name","Version":"2.0","Sender":"SuccessFactors","Receiver":"SAP_HCM"},
+  "parameters": [
+    {"key":"pulse.immediateRunSupported","value":"true"},
+    {"key":"pulse.Source","value":"SuccessFactors"},
+    {"key":"pulse.immediateRunEndpoint","value":"/IntegrationPulse/run"},
+    {"key":"SFResourcePath","value":"EmpJob"},
+    {"key":"filter.query","value":"$select=userId,startDate,companyNav/name&$expand=companyNav&$filter=active eq true"},
+    {"key":"filter.pulseQuery","value":""},
+    {"key":"filter.SFQuery","value":""},
+    {"key":"timer.cron","value":"0 0/15 * ? * MON,TUE * --tz=UTC"}
+  ],
+  "logs": [
+    {"messageId":"failed","status":"FAILED","logEnd":"2026-09-07T12:00:00Z"},
+    {"messageId":"ok","status":"COMPLETED","logEnd":"2026-09-07T13:00:00Z"},
+    {"messageId":"retry","status":"RETRY","logEnd":"2026-09-07T14:00:00Z"},
+    {"messageId":"discard","status":"DISCARDED","logEnd":"2026-09-07T15:00:00Z"}
+  ]
+}

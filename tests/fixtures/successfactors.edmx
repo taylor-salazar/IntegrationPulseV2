@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<edmx:Edmx xmlns:edmx="http://schemas.microsoft.com/ado/2007/06/edmx" Version="1.0">
+ <edmx:DataServices><Schema xmlns="http://schemas.microsoft.com/ado/2008/09/edm" Namespace="SF">
+  <EntityType Name="EmpJob"><Key><PropertyRef Name="userId"/></Key><Property Name="userId" Type="Edm.String"/><Property Name="startDate" Type="Edm.DateTime"/><NavigationProperty Name="companyNav" Relationship="SF.JobCompany" FromRole="Job" ToRole="Company"/></EntityType>
+  <EntityType Name="Company"><Property Name="name" Type="Edm.String"/></EntityType>
+  <Association Name="JobCompany"><End Type="SF.EmpJob" Role="Job" Multiplicity="*"/><End Type="SF.Company" Role="Company" Multiplicity="1"/></Association>
+  <EntityContainer Name="Container"><EntitySet Name="EmpJob" EntityType="SF.EmpJob"/></EntityContainer>
+ </Schema></edmx:DataServices>
+</edmx:Edmx>
