@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { ROOT, harness, storage, deferred, flush, plain, defect } = require('./helpers.cjs');
+const { ROOT, harness, storage, deferred, flush, plain, regression } = require('./helpers.cjs');
 const fixtures = require('../fixtures/contracts.json');
 function detail(options) {
   const h = harness(options); const c = h.controller('IntegrationDetail');
@@ -160,54 +160,54 @@ test('payload formatter preserves malformed/raw formats and parses JSON without 
   assert.equal(d._formatPayload('{"员工":1}', 'application/json'), '{\n  "员工": 1\n}');
   for (const [body, type] of [['{bad', 'application/json'], ['<broken', 'application/xml'], ['a,b\n1,2', 'text/csv'], ['<script>alert(1)</script>', 'text/plain'], ['', '']]) assert.equal(d._formatPayload(body, type), body);
 });
-defect('QA-03', 'schedule edit loses step interval and weekday selection', () => {
+regression('QA-03', 'schedule edit loses step interval and weekday selection', () => {
   const { instance: d } = detail(); const cron = '0 0/15 * ? * MON,TUE * --tz=UTC';
   assert.equal(d._scheduleToCron(d._scheduleFromCron(cron)), cron);
 });
-defect('QA-04', 'encoded baseline filter is corrupted in generated query', () => {
+regression('QA-04', 'encoded baseline filter is corrupted in generated query', () => {
   const d = query('$select=userId&$filter=name%20eq%20%27A%26B%2BC%27', 'newField');
   const result = d._parsePulseQuery(d._getPulseRunOptionsFromDialog().pulseQuery);
   assert.equal(result.filter, "name eq 'A&B+C'");
 });
-defect('QA-04', 'unchanged encoded filter incorrectly produces a pulse query header', () => {
+regression('QA-04', 'unchanged encoded filter incorrectly produces a pulse query header', () => {
   const d = query('$select=userId&$filter=name%20eq%20%27A%26B%2BC%27');
   assert.equal(d._getPulseRunOptionsFromDialog().pulseQuery, '');
 });
-defect('QA-05', 'prototype-named baseline fields silently disappear', () => {
+regression('QA-05', 'prototype-named baseline fields silently disappear', () => {
   const d = query('$select=userId,constructor,toString&$expand=__proto__', 'newField');
   const parsed = d._parsePulseQuery(d._getPulseRunOptionsFromDialog().pulseQuery);
   assert.ok(parsed.select.includes('constructor') && parsed.select.includes('toString') && parsed.expand.includes('__proto__'));
 });
-defect('QA-06', 'late detail load overwrites newer navigation with mixed metadata/configuration', async () => {
+regression('QA-06', 'late detail load overwrites newer navigation with mixed metadata/configuration', async () => {
   const first = deferred(), second = deferred(); const ids = [];
   const { instance: d, models } = detail({ overrides: { 'integrationpulse/service/BackendClient': { getIntegration: id => id === 'A' ? first.promise : second.promise, getConfigurations: id => { ids.push(id); return Promise.resolve([{ key: 'id', value: id }]); } } } });
   d._sId = 'A'; d._load(); d._sId = 'B'; d._load(); second.resolve({ id: 'B' }); await flush(); first.resolve({ id: 'A' }); await flush();
   assert.equal(models.integration.getProperty('/id'), 'B');
 });
-defect('QA-07', 'save completion marks a later unsaved edit pristine', async () => {
+regression('QA-07', 'save completion marks a later unsaved edit pristine', async () => {
   const pending = deferred(); let sent;
   const { instance: d, models } = detail({ overrides: { 'integrationpulse/service/BackendClient': { updateConfigurations: (_, configs) => { sent = plain(configs); return pending.promise; } } } });
   d.onSaveDraft(); const param = models.parameters.getProperty('/groups')[0].params[0]; param.value = 'edited while saving';
   pending.resolve({}); await flush(); assert.equal(sent[0].value, 'true');
   d._recomputeDirty(); assert.equal(models.detailView.getProperty('/dirty'), true);
 });
-defect('QA-08', 'repeated immediate submission sends duplicate requests', async () => {
+regression('QA-08', 'repeated immediate submission sends duplicate requests', async () => {
   const pending = deferred(); let calls = 0;
   const { instance: d } = detail({ overrides: { 'integrationpulse/service/BackendClient': { triggerImmediateRun: () => { calls++; return pending.promise; } } } });
   d._doDeployImmediately({ id: 'id' }, 'name', {}); d._doDeployImmediately({ id: 'id' }, 'name', {});
   pending.resolve({}); await flush(); assert.equal(calls, 1);
 });
-defect('QA-09', 'malformed EDMX passes regex parsing with usable partial metadata', () => {
+regression('QA-09', 'malformed EDMX passes regex parsing with usable partial metadata', () => {
   const { instance: d } = detail(); let error;
   try { d._buildEdmxQueryOptions(d._parseEdmxMetadata('<Schema><EntityType Name="EmpJob"><Property Name="id"/></EntityType>'), 'EmpJob'); } catch (e) { error = e; }
   assert.ok(error, 'Unclosed Schema must be rejected');
 });
-defect('QA-10', 'Monitoring Detail latest run misorders SAP /Date/ timestamps', () => {
+regression('QA-10', 'Monitoring Detail latest run misorders SAP /Date/ timestamps', () => {
   const { instance: c, models } = harness().controller('MonitoringDetail');
   c._summarizeLogs([{ status: 'FAILED', logEnd: '/Date(1000)/' }, { status: 'COMPLETED', logEnd: '/Date(2000)/' }]);
   assert.equal(models.monDetailView.getProperty('/summary/latestStatus'), 'COMPLETED');
 });
-defect('QA-11', 'Reset leaves immediate-run feature flags stale', () => {
+regression('QA-11', 'Reset leaves immediate-run feature flags stale', () => {
   const { instance: d, models } = detail(); d._findParam('pulse.immediateRunSupported').value = 'false'; d.onParamChange(); d.onReset();
   assert.equal(d._findParamValue('pulse.immediateRunSupported'), 'true');
   assert.equal(models.detailView.getProperty('/immediateRunSupported'), true);

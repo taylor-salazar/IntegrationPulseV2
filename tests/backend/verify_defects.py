@@ -1,4 +1,4 @@
-"""Run the intended assertions without expected-failure handling (red until fixed)."""
+"""Run the original defect assertions as an ordinary regression subset."""
 import unittest
 from pathlib import Path
 
@@ -12,7 +12,6 @@ if __name__ == '__main__':
     selected = unittest.TestSuite()
     for case in cases(suite):
         if '_QA_' in case._testMethodName:
-            getattr(type(case), case._testMethodName).__unittest_expecting_failure__ = False
             selected.addTest(case)
     result = unittest.TextTestRunner(verbosity=2).run(selected)
     raise SystemExit(not result.wasSuccessful())

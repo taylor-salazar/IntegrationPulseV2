@@ -3,6 +3,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
 const test = require('node:test');
+const { DOMParser: XmlDOMParser } = require('@xmldom/xmldom');
 const ROOT = path.resolve(__dirname, '../..');
 
 class Model {
@@ -22,7 +23,7 @@ function storage(seed = {}) {
   const values = new Map(Object.entries(seed));
   return { getItem: k => values.get(k) ?? null, setItem: (k, v) => values.set(k, String(v)), removeItem: k => values.delete(k) };
 }
-function harness({ search = '', fetch: boundary, localStorage = storage(), overrides = {}, immediateTimers = false } = {}) {
+function harness({ search = '', fetch: boundary, localStorage = storage(), overrides = {}, immediateTimers = false, clock = Date } = {}) {
   const cache = new Map();
   const calls = [], notices = [];
   const config = { useMock: false, liveMode: 'destination', destinationBaseUrl: '/api/v1', immediateRunBaseUrl: '', payloadBaseUrl: '/payload-api/v1', backendBaseUrl: 'http://proxy.test' };
@@ -35,6 +36,9 @@ function harness({ search = '', fetch: boundary, localStorage = storage(), overr
     'integrationpulse/service/config': config,
     ...overrides
   };
+  if (overrides['integrationpulse/service/BackendClient']) {
+    deps['integrationpulse/service/BackendClient'] = { getPayloads: () => Promise.resolve([]), ...overrides['integrationpulse/service/BackendClient'] };
+  }
   function load(file) {
     if (cache.has(file)) return cache.get(file);
     let exported;
@@ -48,7 +52,18 @@ function harness({ search = '', fetch: boundary, localStorage = storage(), overr
       }));
     }, require: { toUrl: name => '/webapp/' + name.slice(17) } } };
     vm.runInNewContext(fs.readFileSync(path.join(ROOT, file), 'utf8'), {
-      sap, window: { location: { search }, localStorage }, URLSearchParams, Date,
+      sap, window: { location: { search, href: 'http://local.test/index.html' }, localStorage }, URLSearchParams, URL, Date: clock,
+      DOMParser: class {
+        parseFromString(xml, type) {
+          // Browser DOMParser reports malformed XML via parsererror. xmldom
+          // is stricter here: turn every parser diagnostic into a thrown error.
+          return new XmlDOMParser({ errorHandler: {
+            warning: message => { throw new Error(message); },
+            error: message => { throw new Error(message); },
+            fatalError: message => { throw new Error(message); }
+          } }).parseFromString(xml, type);
+        }
+      },
       setTimeout: immediateTimers ? fn => queueMicrotask(fn) : setTimeout,
       clearTimeout, setInterval, clearInterval,
       fetch: async (url, options = {}) => {
@@ -67,7 +82,7 @@ function harness({ search = '', fetch: boundary, localStorage = storage(), overr
       setModel: (m, n) => { models[n] = m; }, getModel: n => models[n],
       getText: key => key === 'unknownSystem' ? 'Unknown System' : key,
       getView: () => view, byId: () => null,
-      getRouter: () => ({ getRoute: name => ({ attachPatternMatched: (fn, ctx) => routes.push({ name, fn, ctx }) }) }),
+      getRouter: () => ({ attachRouteMatched() {}, detachRouteMatched() {}, getRoute: name => ({ attachPatternMatched: (fn, ctx) => routes.push({ name, fn, ctx }), detachPatternMatched() {} }) }),
       navTo: (...args) => navigation.push(args)
     });
     instance.onInit();
@@ -80,13 +95,7 @@ const odata = rows => json({ d: { results: rows } });
 const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b; }); return { promise, resolve, reject }; };
 const flush = () => new Promise(resolve => setImmediate(resolve));
 const plain = value => JSON.parse(JSON.stringify(value));
-function defect(id, title, reproduce, { provisional = false } = {}) {
-  test(`${id} ${provisional ? 'provisional contract' : 'known defect'}: ${title}`, async t => {
-    if (process.env.QA_VERIFY_FIXES === '1') return reproduce();
-    let failure;
-    try { await reproduce(); } catch (error) { failure = error; }
-    assert.ok(failure instanceof assert.AssertionError, `${id}: expected a failing behavior assertion; got ${failure || 'an unexpected pass; retire/update this defect test'}`);
-    t.diagnostic(`${provisional ? 'CLARIFICATION REQUIRED' : 'CONFIRMED'} ${id}: ${failure.message.split('\n')[0]}; see docs/qa/defects.md`);
-  });
+function regression(id, title, reproduce) {
+  test(`${id} regression: ${title}`, reproduce);
 }
-module.exports = { ROOT, Model, storage, harness, json, odata, deferred, flush, plain, defect };
+module.exports = { ROOT, Model, storage, harness, json, odata, deferred, flush, plain, regression };

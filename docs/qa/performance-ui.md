@@ -1,5 +1,9 @@
 # Repository performance, UI and robustness review
 
+> **Update after approved fixes (2026-09-08):** one-flow cold destination Monitoring now performs one runtime collection read, one metadata read and one dated MPL query; 24-hour summaries paginate with six concurrent flow queries. Review aggregation reads storage once for 1,000 rows. Payload list SQL selects summary columns without bodies. Detail lifecycle guards and filename/endpoint protections are implemented. See [approved fixes](approved-fixes.md).
+>
+> The report below preserves the **historical pre-fix audit snapshot** and original measurements/proposals. Its old duplicate-read, zero-count, SELECT *, credential-forwarding, unsafe-filename and approval-pending statements are superseded above. General history still uses top=50; catalog pagination and other architectural/UI risks remain unverified or inferred.
+
 No BAS/browser timing, real SAP latency or PostgreSQL benchmark was measured. Unit-test elapsed time is not application performance. The operation-count tests use deterministic synthetic work and no timing threshold.
 
 ## Measured locally

@@ -166,11 +166,6 @@ sap.ui.define([
 		return String(sName || "").split(".").pop();
 	}
 
-	function xmlAttr(sTag, sName) {
-		var oMatch = new RegExp("\\b" + sName + "\\s*=\\s*(['\"])(.*?)\\1", "i").exec(sTag || "");
-		return oMatch ? oMatch[2] : "";
-	}
-
 	var EDMX_OPTIONS_CACHE_KEY = "integrationPulse.edmxOptions.v2";
 	var mEdmxOptionsCache = {};
 
@@ -196,6 +191,10 @@ sap.ui.define([
 	return BaseController.extend("integrationpulse.controller.IntegrationDetail", {
 
 		onInit: function () {
+			this._iLoadGeneration = 0;
+			this._bDetailActive = true;
+			this._bExited = false;
+			this._mOperations = Object.create(null);
 			// integration: selected artifact details
 			// parameters: grouped editable externalized parameters
 			// payloads/payloadDetail: captured result payload previews
@@ -209,6 +208,19 @@ sap.ui.define([
 			this.setModel(new JSONModel({ busy: false, dirty: false }), "detailView");
 
 			this.getRouter().getRoute("integrationDetail").attachPatternMatched(this._onMatched, this);
+			this.getRouter().attachRouteMatched(this._onAnyRouteMatched, this);
+		},
+
+		_onAnyRouteMatched: function (oEvent) {
+			if (oEvent.getParameter("name") !== "integrationDetail") {
+				this._bDetailActive = false;
+				this._iLoadGeneration += 1;
+				this._closeDetailDialogs();
+			}
+		},
+
+		_isCurrentLoad: function (iGeneration, sId) {
+			return !this._bExited && this._bDetailActive && this._iLoadGeneration === iGeneration && this._sId === sId;
 		},
 
 		_onMatched: function (oEvent) {
@@ -222,36 +234,56 @@ sap.ui.define([
 
 		_load: function () {
 			var that = this;
+			var sId = this._sId;
+			var iGeneration = ++this._iLoadGeneration;
+			this._bDetailActive = true;
+			this._closeDetailDialogs();
+			this._bLoading = true;
+			this.getModel("integration").setData({});
+			this.getModel("parameters").setData({ groups: [] });
+			this.getModel("payloads").setData({ items: [] });
+			this.getModel("payloadDetail").setData({});
+			this.getModel("detailView").setProperty("/payloadError", "");
+			this._updateStandardFeatureFlags();
 			this.getModel("detailView").setProperty("/dirty", false);
 			this.getView().setModel(this.getModel("detailView"));
 			this.getModel("detailView").setProperty("/busy", true);
 
-			BackendClient.getIntegration(this._sId).then(function (oIntegration) {
-				oIntegration = oIntegration || {};
-				return BackendClient.getConfigurations(this._sId, oIntegration).then(function (aConfigs) {
+			return BackendClient.getIntegration(sId).then(function (oIntegration) {
+				if (!that._isCurrentLoad(iGeneration, sId)) { return null; }
+				if (!oIntegration) { throw new Error("Integration not found"); }
+				that._loadPayloads(sId, iGeneration);
+				return BackendClient.getConfigurations(sId, oIntegration).then(function (aConfigs) {
 					return {
 						integration: oIntegration,
 						configurations: aConfigs || []
 					};
 				});
 			}.bind(this)).then(function (oRes) {
+				if (!oRes || !that._isCurrentLoad(iGeneration, sId)) { return; }
 				var oIntegration = oRes.integration || {};
 				var aConfigs = oRes.configurations || [];
 				that.getModel("integration").setData(oIntegration);
 				that.getModel("parameters").setData({ groups: that._groupParams(aConfigs) });
 				that._updateStandardFeatureFlags();
-				that.getModel("detailView").setProperty("/busy", false);
+				that._bLoading = false;
+				that.getModel("detailView").setProperty("/busy", !!that._mOperations[sId]);
 			}).catch(function (oErr) {
+				if (!that._isCurrentLoad(iGeneration, sId)) { return; }
+				that._bLoading = false;
 				that.getModel("detailView").setProperty("/busy", false);
 				MessageToast.show("Failed to load configuration: " + oErr.message);
 			});
 		},
 
-		_loadPayloads: function () {
-			BackendClient.getPayloads(this._sId).then(function (aPayloads) {
+		_loadPayloads: function (sId, iGeneration) {
+			return BackendClient.getPayloads(sId).then(function (aPayloads) {
+				if (!this._isCurrentLoad(iGeneration, sId)) { return; }
 				this.getModel("payloads").setProperty("/items", aPayloads || []);
-			}.bind(this)).catch(function () {
+			}.bind(this)).catch(function (oErr) {
+				if (!this._isCurrentLoad(iGeneration, sId)) { return; }
 				this.getModel("payloads").setProperty("/items", []);
+				this.getModel("detailView").setProperty("/payloadError", this.getText("payloadLoadFailed", [oErr.message]));
 			}.bind(this));
 		},
 
@@ -260,7 +292,7 @@ sap.ui.define([
 		 * Keeps a pristine copy on each param for reset / dirty detection.
 		 */
 		_groupParams: function (aConfigs) {
-			var mGroups = {};
+			var mGroups = Object.create(null);
 			aConfigs.forEach(function (oParam) {
 				var sPrefix = (oParam.key.indexOf(".") > -1) ? oParam.key.split(".")[0] : "general";
 				var sGroupName = GROUP_LABELS[sPrefix] || (sPrefix.charAt(0).toUpperCase() + sPrefix.slice(1));
@@ -332,7 +364,7 @@ sap.ui.define([
 		},
 
 		_joinQueryList: function (aValues) {
-			var mSeen = {};
+			var mSeen = Object.create(null);
 			return (aValues || []).map(function (sValue) {
 				return String(sValue || "").trim();
 			}).filter(function (sValue) {
@@ -395,14 +427,17 @@ sap.ui.define([
 			var oParsed = {
 				select: [],
 				expand: [],
-				filter: ""
+				filter: "",
+				other: []
 			};
 			String(sQuery || "").replace(/^\?/, "").split("&").forEach(function (sPair) {
 				var iEquals = sPair.indexOf("=");
 				if (iEquals < 0) {
+					if (sPair) { oParsed.other.push({ key: this._decodePulseQueryPart(sPair), value: null }); }
 					return;
 				}
-				var sKey = this._decodePulseQueryPart(sPair.slice(0, iEquals)).replace(/^\$/, "");
+				var sOriginalKey = this._decodePulseQueryPart(sPair.slice(0, iEquals)).trim();
+				var sKey = sOriginalKey.replace(/^\$/, "");
 				var sValue = this._decodePulseQueryPart(sPair.slice(iEquals + 1));
 				if (sKey === "select") {
 					oParsed.select = oParsed.select.concat(this._splitQueryList(sValue));
@@ -410,6 +445,8 @@ sap.ui.define([
 					oParsed.expand = oParsed.expand.concat(this._splitQueryList(sValue));
 				} else if (sKey === "filter" && sValue) {
 					oParsed.filter = oParsed.filter ? oParsed.filter + " and " + sValue : sValue;
+				} else if (sKey !== "filter") {
+					oParsed.other.push({ key: sOriginalKey, value: sValue });
 				}
 			}.bind(this));
 			oParsed.select = this._splitQueryList(this._joinQueryList(oParsed.select));
@@ -418,7 +455,7 @@ sap.ui.define([
 		},
 
 		_indexPulseQueryValues: function (aValues) {
-			var mValues = {};
+			var mValues = Object.create(null);
 			(aValues || []).forEach(function (sValue) {
 				if (sValue) {
 					mValues[sValue] = true;
@@ -453,14 +490,18 @@ sap.ui.define([
 			var sExpandQuery = this._joinQueryList(oQuery.expand || []);
 			var sFilterQuery = String(oQuery.filter || "").trim();
 			if (sSelectQuery) {
-				aParts.push("$select=" + sSelectQuery);
+				aParts.push("$select=" + encodeURIComponent(sSelectQuery).replace(/%2C/gi, ",").replace(/%2F/gi, "/"));
 			}
 			if (sExpandQuery) {
-				aParts.push("$expand=" + sExpandQuery);
+				aParts.push("$expand=" + encodeURIComponent(sExpandQuery).replace(/%2C/gi, ",").replace(/%2F/gi, "/"));
 			}
 			if (sFilterQuery) {
-				aParts.push("$filter=" + sFilterQuery);
+				aParts.push("$filter=" + encodeURIComponent(sFilterQuery));
 			}
+			(oQuery.other || []).forEach(function (oOption) {
+				aParts.push(encodeURIComponent(oOption.key).replace(/%24/g, "$") +
+					(oOption.value === null ? "" : "=" + encodeURIComponent(oOption.value)));
+			});
 			return aParts.join("&");
 		},
 
@@ -472,7 +513,8 @@ sap.ui.define([
 				filter: this._combinePulseFilterQuery(
 					this._oPulseBaseQuery && this._oPulseBaseQuery.filter,
 					this._buildPulseFilterQuery()
-				)
+				),
+				other: this._oPulseBaseQuery && this._oPulseBaseQuery.other || []
 			});
 		},
 
@@ -538,8 +580,8 @@ sap.ui.define([
 		},
 
 		_seedPulseAdvancedSelections: function () {
-			this._mPulseAdvancedSelect = {};
-			this._mPulseAdvancedExpand = {};
+			this._mPulseAdvancedSelect = Object.create(null);
+			this._mPulseAdvancedExpand = Object.create(null);
 		},
 
 		_getPulseImmediateChildren: function (sBasePath) {
@@ -853,73 +895,48 @@ sap.ui.define([
 		},
 
 		_parseEdmxMetadata: function (sXml) {
-			if (!/<(?:\w+:)?Edmx\b|<(?:\w+:)?Schema\b/i.test(sXml || "")) {
-				throw new Error(this.getText("pulseEdmxInvalid"));
+			var sInvalid = this.getText("pulseEdmxInvalid");
+			if (!sXml || /<!DOCTYPE|<!ENTITY/i.test(sXml)) { throw new Error(sInvalid); }
+			var oDocument;
+			try { oDocument = new DOMParser().parseFromString(sXml, "application/xml"); }
+			catch (oError) { throw new Error(sInvalid); }
+			function elements(oRoot, sName) {
+				return Array.prototype.slice.call(oRoot.getElementsByTagName("*")).filter(function (oNode) {
+					return (oNode.localName || oNode.nodeName.split(":").pop()) === sName;
+				});
 			}
-			var mEntitySets = {};
-			var mEntityTypes = {};
-			var mAssociations = {};
-
-			var oEntitySetMatch;
-			var rEntitySet = /<(?:\w+:)?EntitySet\b([^>]*)\/?>/gi;
-			while ((oEntitySetMatch = rEntitySet.exec(sXml))) {
-				var sEntitySetName = xmlAttr(oEntitySetMatch[1], "Name");
-				if (sEntitySetName) {
-					mEntitySets[sEntitySetName] = stripNamespace(xmlAttr(oEntitySetMatch[1], "EntityType"));
-				}
+			var sRoot = oDocument.documentElement && oDocument.documentElement.localName;
+			if (["Edmx", "Schema"].indexOf(sRoot) < 0 || elements(oDocument, "parsererror").length) { throw new Error(sInvalid); }
+			var mEntitySets = Object.create(null), mEntityTypes = Object.create(null), mAssociations = Object.create(null);
+			function putUnique(mMap, sName, oValue) {
+				if (!sName || Object.prototype.hasOwnProperty.call(mMap, sName)) { throw new Error(sInvalid); }
+				mMap[sName] = oValue;
 			}
-
-			var oAssociationMatch;
-			var rAssociation = /<(?:\w+:)?Association\b([^>]*)>([\s\S]*?)<\/(?:\w+:)?Association>/gi;
-			while ((oAssociationMatch = rAssociation.exec(sXml))) {
-				var sAssociationName = xmlAttr(oAssociationMatch[1], "Name");
-				var mRoles = {};
-				var oEndMatch;
-				var rEnd = /<(?:\w+:)?End\b([^>]*)\/?>/gi;
-				while ((oEndMatch = rEnd.exec(oAssociationMatch[2]))) {
-					var sRole = xmlAttr(oEndMatch[1], "Role");
-					if (sRole) {
-						mRoles[sRole] = stripNamespace(xmlAttr(oEndMatch[1], "Type"));
-					}
-				}
-				if (sAssociationName) {
-					mAssociations[sAssociationName] = mRoles;
-				}
-			}
-
-			var oEntityTypeMatch;
-			var rEntityType = /<(?:\w+:)?EntityType\b([^>]*)>([\s\S]*?)<\/(?:\w+:)?EntityType>/gi;
-			while ((oEntityTypeMatch = rEntityType.exec(sXml))) {
-				var sEntityName = xmlAttr(oEntityTypeMatch[1], "Name");
-				if (!sEntityName) {
-					continue;
-				}
-				var oEntity = { properties: [], navs: [] };
-				var sBody = oEntityTypeMatch[2];
-				var oPropertyMatch;
-				var rProperty = /<(?:\w+:)?Property\b([^>]*)\/?>/gi;
-				while ((oPropertyMatch = rProperty.exec(sBody))) {
-					var sPropertyName = xmlAttr(oPropertyMatch[1], "Name");
-					if (sPropertyName) {
-						oEntity.properties.push(sPropertyName);
-					}
-				}
-				var oNavMatch;
-				var rNav = /<(?:\w+:)?NavigationProperty\b([^>]*)\/?>/gi;
-				while ((oNavMatch = rNav.exec(sBody))) {
-					var sNavName = xmlAttr(oNavMatch[1], "Name");
-					var sRelationship = stripNamespace(xmlAttr(oNavMatch[1], "Relationship"));
-					var mAssociation = mAssociations[sRelationship] || {};
-					if (sNavName) {
-						oEntity.navs.push({
-							name: sNavName,
-							target: mAssociation[xmlAttr(oNavMatch[1], "ToRole")] || ""
-						});
-					}
-				}
-				mEntityTypes[sEntityName] = oEntity;
-			}
-
+			elements(oDocument, "EntitySet").forEach(function (oSet) {
+				putUnique(mEntitySets, oSet.getAttribute("Name"), stripNamespace(oSet.getAttribute("EntityType")));
+			});
+			elements(oDocument, "Association").forEach(function (oAssociation) {
+				var mRoles = Object.create(null);
+				elements(oAssociation, "End").forEach(function (oEnd) {
+					putUnique(mRoles, oEnd.getAttribute("Role"), stripNamespace(oEnd.getAttribute("Type")));
+				});
+				putUnique(mAssociations, oAssociation.getAttribute("Name"), mRoles);
+			});
+			elements(oDocument, "EntityType").forEach(function (oType) {
+				var oEntity = { properties: [], navs: [] }, mNames = Object.create(null);
+				elements(oType, "Property").forEach(function (oProperty) {
+					var sName = oProperty.getAttribute("Name");
+					putUnique(mNames, sName, true);
+					oEntity.properties.push(sName);
+				});
+				elements(oType, "NavigationProperty").forEach(function (oNav) {
+					var sName = oNav.getAttribute("Name");
+					putUnique(mNames, sName, true);
+					var mRoles = mAssociations[stripNamespace(oNav.getAttribute("Relationship"))] || {};
+					oEntity.navs.push({ name: sName, target: mRoles[oNav.getAttribute("ToRole")] || "" });
+				});
+				putUnique(mEntityTypes, oType.getAttribute("Name"), oEntity);
+			});
 			return { entitySets: mEntitySets, entityTypes: mEntityTypes };
 		},
 
@@ -1035,10 +1052,16 @@ sap.ui.define([
 		},
 
 		_uploadPulseEdmx: function () {
+			var iGeneration = this._iLoadGeneration, sId = this._sId;
+			var iUpload = this._iEdmxUpload = (this._iEdmxUpload || 0) + 1;
+			var isCurrent = function () {
+				return this._isCurrentLoad(iGeneration, sId) && this._bPulseDialogOpen && this._iEdmxUpload === iUpload;
+			}.bind(this);
 			var oInput = document.createElement("input");
 			oInput.type = "file";
 			oInput.accept = ".edmx,.xml,text/xml,application/xml";
 			oInput.onchange = function () {
+				if (!isCurrent()) { return; }
 				var oFile = oInput.files && oInput.files[0];
 				if (!oFile) {
 					return;
@@ -1046,6 +1069,7 @@ sap.ui.define([
 				this._openEdmxProgressDialog();
 				var oReader = new FileReader();
 				oReader.onprogress = function (oEvent) {
+					if (!isCurrent()) { return; }
 					if (oEvent.lengthComputable) {
 						this._updateEdmxProgress(
 							Math.min(70, (oEvent.loaded / oEvent.total) * 70),
@@ -1054,6 +1078,7 @@ sap.ui.define([
 					}
 				}.bind(this);
 				oReader.onload = function (oEvent) {
+					if (!isCurrent()) { return; }
 					try {
 						this._updateEdmxProgress(72, this.getText("pulseEdmxProgressParsing"));
 						var sResourcePath = this._getSfResourcePath();
@@ -1079,10 +1104,12 @@ sap.ui.define([
 									oOptions.expandFields.length
 								]) + (oOptions.truncated ? " " + this.getText("pulseEdmxTruncated") : "")
 						}).then(function () {
+							if (!isCurrent()) { return; }
 							this._refreshPulseDebugQuery();
 							this._updateEdmxProgress(100, this.getText("pulseEdmxProgressComplete"));
-							setTimeout(this._closeEdmxProgressDialog.bind(this), 250);
+							setTimeout(function () { if (isCurrent()) { this._closeEdmxProgressDialog(); } }.bind(this), 250);
 						}.bind(this)).catch(function (oErr) {
+							if (!isCurrent()) { return; }
 							this._closeEdmxProgressDialog();
 							MessageBox.error(this.getText("pulseEdmxLoadFailed", [oErr.message]));
 						}.bind(this));
@@ -1092,6 +1119,7 @@ sap.ui.define([
 					}
 				}.bind(this);
 				oReader.onerror = function () {
+					if (!isCurrent()) { return; }
 					this._closeEdmxProgressDialog();
 					MessageBox.error(this.getText("pulseEdmxLoadFailed", [this.getText("pulseEdmxReadFailed")]));
 				}.bind(this);
@@ -1127,6 +1155,7 @@ sap.ui.define([
 		},
 
 		_openPulseRunDialog: function (oIntegration, sName) {
+			var sDialogId = this._sId, iDialogGeneration = this._iLoadGeneration;
 			var sResourcePath = this._getSfResourcePath();
 			var bSourceIsSuccessFactors = this._isSuccessFactorsSource();
 			this._oPulseBaseQuery = this._parsePulseQuery(this._findParamValue("filter.query"));
@@ -1284,6 +1313,7 @@ sap.ui.define([
 					text: this.getText("deployImmediately"),
 					type: "Emphasized",
 					press: function () {
+						if (!this._isCurrentLoad(iDialogGeneration, sDialogId)) { oDialog.close(); return; }
 						var oRunOptions = this._getPulseRunOptionsFromDialog();
 						oDialog.close();
 						this._doDeployImmediately(oIntegration, sName, oRunOptions);
@@ -1294,6 +1324,10 @@ sap.ui.define([
 					press: function () { oDialog.close(); }
 				}),
 				afterClose: function () {
+					this._iEdmxUpload = (this._iEdmxUpload || 0) + 1;
+					this._closeEdmxProgressDialog();
+					this._bPulseDialogOpen = false;
+					this._oPulseRunDialog = null;
 					oDialog.destroy();
 					this._oPulseSelectPicker = null;
 					this._oPulseSelectTextArea = null;
@@ -1316,6 +1350,8 @@ sap.ui.define([
 				}.bind(this)
 			});
 			this.getView().addDependent(oDialog);
+			this._bPulseDialogOpen = true;
+			this._oPulseRunDialog = oDialog;
 			oDialog.open();
 			var oCachedOptions = this._getCachedEdmxOptions(sResourcePath);
 			if (bSourceIsSuccessFactors && oCachedOptions) {
@@ -1435,7 +1471,7 @@ sap.ui.define([
 			var sToday = new Date().toISOString().slice(0, 10);
 			var sDisplayHour = cronStartValue(sHours, "0");
 			var sDisplayMinute = cronStartValue(sMinutes, "0");
-			return {
+			var oSchedule = {
 				mode: "advanced",
 				modeIndex: 3,
 				onceDate: sToday,
@@ -1459,6 +1495,17 @@ sap.ui.define([
 				years: this._cronFieldToKeys(sYears, String(new Date().getFullYear())),
 				timeZone: sTimeZone
 			};
+			// Keep every original cron token. Controls only replace fields whose
+			// displayed selection actually changed; unsupported tokens stay raw.
+			oSchedule.originalCron = String(sValue || "");
+			oSchedule.originalFields = aParts;
+			oSchedule.originalTimeZone = sTimeZone;
+			oSchedule.hadTimeZone = !!aTz;
+			oSchedule.originalSelections = {};
+			["second", "minute", "hour", "day", "month", "year"].forEach(function (sUnit) {
+				oSchedule.originalSelections[sUnit] = JSON.stringify([oSchedule[sUnit + "Mode"], oSchedule[sUnit + "s"]]);
+			});
+			return oSchedule;
 		},
 
 		_cronFieldToKeys: function (sField, sFallback) {
@@ -1487,6 +1534,7 @@ sap.ui.define([
 
 		_scheduleToCron: function (oSchedule) {
 			var sTz = oSchedule.timeZone ? " --tz=" + oSchedule.timeZone : "";
+			if (oSchedule.mode === "advanced" && !oSchedule.hadTimeZone && oSchedule.timeZone === oSchedule.originalTimeZone) { sTz = ""; }
 			if (oSchedule.mode === "once") {
 				var aDate = (oSchedule.onceDate || "").split("-");
 				var aTime = (oSchedule.onceTime || "00:00").split(":");
@@ -1511,25 +1559,37 @@ sap.ui.define([
 				return "0 " + Number(aStartTime[1] || 0) + " " + Number(aStartTime[0] || 0) +
 					" 1/" + nEvery + " * ? *" + sTz;
 			}
-			return [
-				this._keysToCronField(oSchedule.secondMode, oSchedule.seconds, "0"),
-				this._keysToCronField(oSchedule.minuteMode, oSchedule.minutes, "0"),
-				this._keysToCronField(oSchedule.hourMode, oSchedule.hours, "0"),
-				this._keysToCronField(oSchedule.dayMode, oSchedule.days, "*"),
-				this._keysToCronField(oSchedule.monthMode, oSchedule.months, "*"),
-				"?",
-				this._keysToCronField(oSchedule.yearMode, oSchedule.years, "*")
-			].join(" ") + sTz;
+			var aOriginal = oSchedule.originalFields;
+			var aFields = aOriginal ? aOriginal.slice() : ["0", "0", "0", "*", "*", "?", "*"];
+			var bChanged = false;
+			["second", "minute", "hour", "day", "month", "year"].forEach(function (sUnit, iIndex) {
+				var iField = iIndex === 5 ? 6 : iIndex;
+				var sSelection = JSON.stringify([oSchedule[sUnit + "Mode"], oSchedule[sUnit + "s"]]);
+				if (oSchedule.originalSelections && oSchedule.originalSelections[sUnit] === sSelection) { return; }
+				bChanged = true;
+				var sField = this._keysToCronField(oSchedule[sUnit + "Mode"], oSchedule[sUnit + "s"], iField < 3 ? "0" : "*");
+				// Changing the starting value of an existing step retains its divisor.
+				if (oSchedule[sUnit + "Mode"] === "start" && aOriginal && /\//.test(aOriginal[iField] || "")) {
+					sField = sField.split("/")[0] + "/" + aOriginal[iField].split("/")[1];
+				}
+				aFields[iField] = sField;
+			}.bind(this));
+			if (!bChanged && oSchedule.timeZone === oSchedule.originalTimeZone) { return oSchedule.originalCron; }
+			if (aOriginal && (aOriginal.length < 6 || aOriginal.length > 7)) {
+				throw new Error("Unsupported schedule. Choose an explicit schedule mode to replace it.");
+			}
+			return aFields.join(" ") + sTz;
 		},
 
 		onTimerScheduleChange: function (oEvent) {
 			var oCtx = oEvent.getSource().getBindingContext("parameters");
 			var oParam = oCtx && oCtx.getObject();
-			if (!oParam || !oParam.schedule) {
+			if (!oParam || !oParam.schedule || oParam.readOnly) {
 				return;
 			}
 			oParam.schedule.modeIndex = this._scheduleModeToIndex(oParam.schedule.mode);
-			oParam.value = this._scheduleToCron(oParam.schedule);
+			try { oParam.value = this._scheduleToCron(oParam.schedule); }
+			catch (oError) { MessageToast.show(oError.message); return; }
 			this.getModel("parameters").refresh(true);
 			this._recomputeDirty();
 		},
@@ -1537,12 +1597,13 @@ sap.ui.define([
 		onTimerModeSelect: function (oEvent) {
 			var oCtx = oEvent.getSource().getBindingContext("parameters");
 			var oParam = oCtx && oCtx.getObject();
-			if (!oParam || !oParam.schedule) {
+			if (!oParam || !oParam.schedule || oParam.readOnly) {
 				return;
 			}
 			oParam.schedule.modeIndex = oEvent.getParameter("selectedIndex");
 			oParam.schedule.mode = this._scheduleModeFromIndex(oParam.schedule.modeIndex);
-			oParam.value = this._scheduleToCron(oParam.schedule);
+			try { oParam.value = this._scheduleToCron(oParam.schedule); }
+			catch (oError) { MessageToast.show(oError.message); return; }
 			this.getModel("parameters").refresh(true);
 			this._recomputeDirty();
 		},
@@ -1560,30 +1621,52 @@ sap.ui.define([
 			}.bind(this));
 			oModel.setProperty("/groups", aGroups);
 			this.getModel("detailView").setProperty("/dirty", false);
+			this._updateStandardFeatureFlags();
+		},
+
+		_beginOperation: function () {
+			var sId = this._sId;
+			if (this._bExited || !this._bDetailActive || this._bLoading || this._mOperations[sId]) { return null; }
+			var oOperation = { id: sId, generation: this._iLoadGeneration, values: [] };
+			(this.getModel("parameters").getProperty("/groups") || []).forEach(function (oGroup) {
+				oGroup.params.forEach(function (oParam) { oOperation.values.push({ param: oParam, value: oParam.value }); });
+			});
+			this._mOperations[sId] = oOperation;
+			this.getModel("detailView").setProperty("/busy", true);
+			return oOperation;
+		},
+
+		_acceptSubmittedValues: function (oOperation) {
+			oOperation.values.forEach(function (oSaved) { oSaved.param.pristineValue = oSaved.value; });
+			this.getModel("parameters").refresh(true);
+			this._recomputeDirty();
+		},
+
+		_finishOperation: function (oOperation) {
+			if (this._mOperations[oOperation.id] === oOperation) { delete this._mOperations[oOperation.id]; }
+			if (!this._bExited && this._bDetailActive && this._sId === oOperation.id) {
+				this.getModel("detailView").setProperty("/busy", !!this._bLoading);
+			}
 		},
 
 		onSaveDraft: function () {
 			var that = this;
-			this.getModel("detailView").setProperty("/busy", true);
-			BackendClient.updateConfigurations(this._getConfigurationArtifactId(), this._collectParams()).then(function () {
-				// Saved values become the new pristine baseline.
-				var oModel = that.getModel("parameters");
-				var aGroups = oModel.getProperty("/groups") || [];
-				aGroups.forEach(function (oGroup) {
-					oGroup.params.forEach(function (oParam) { oParam.pristineValue = oParam.value; });
-				});
-				oModel.setProperty("/groups", aGroups);
-				that.getModel("detailView").setProperty("/dirty", false);
-				that.getModel("detailView").setProperty("/busy", false);
+			var oOperation = this._beginOperation();
+			if (!oOperation) { return; }
+			return BackendClient.updateConfigurations(this._getConfigurationArtifactId(), this._collectParams()).then(function () {
+				if (!that._isCurrentLoad(oOperation.generation, oOperation.id)) { return; }
+				that._acceptSubmittedValues(oOperation);
 				MessageToast.show(that.getText("save") + " ✓");
 			}).catch(function (oErr) {
-				that.getModel("detailView").setProperty("/busy", false);
-				MessageToast.show("Save failed: " + oErr.message);
-			});
+				if (that._isCurrentLoad(oOperation.generation, oOperation.id)) { MessageToast.show("Save failed: " + oErr.message); }
+			}).finally(function () { that._finishOperation(oOperation); });
 		},
 
 		onDeploy: function () {
 			var that = this;
+			if (this._bConfirmingDeploy || this._mOperations[this._sId]) { return; }
+			this._bConfirmingDeploy = true;
+			var sId = this._sId, iGeneration = this._iLoadGeneration;
 			var sName = this.getModel("integration").getProperty("/name");
 			MessageBox.confirm(this.getText("deployConfirmText", [sName]), {
 				title: this.getText("deployConfirmTitle"),
@@ -1591,7 +1674,8 @@ sap.ui.define([
 				actions: [MessageBox.Action.OK, MessageBox.Action.CANCEL],
 				emphasizedAction: MessageBox.Action.OK,
 				onClose: function (sAction) {
-					if (sAction === MessageBox.Action.OK) {
+					that._bConfirmingDeploy = false;
+					if (sAction === MessageBox.Action.OK && that._isCurrentLoad(iGeneration, sId)) {
 						that._doDeploy(sName);
 					}
 				}
@@ -1599,6 +1683,7 @@ sap.ui.define([
 		},
 
 		onDeployImmediately: function () {
+			if (this._mOperations[this._sId] || this._bPulseDialogOpen) { return; }
 			if (!this.getModel("detailView").getProperty("/immediateRunSupported")) {
 				MessageToast.show(this.getText("deployImmediatelyUnsupported"));
 				return;
@@ -1610,42 +1695,37 @@ sap.ui.define([
 
 		_doDeployImmediately: function (oIntegration, sName, oRunOptions) {
 			var that = this;
-			this.getModel("detailView").setProperty("/busy", true);
+			var oOperation = this._beginOperation();
+			if (!oOperation) { return; }
 			MessageToast.show(this.getText("deployImmediatelyStarted", [sName]));
-			BackendClient.triggerImmediateRun(oIntegration, oRunOptions).then(function () {
-				that.getModel("detailView").setProperty("/busy", false);
+			return BackendClient.triggerImmediateRun(oIntegration, oRunOptions).then(function () {
+				if (!that._isCurrentLoad(oOperation.generation, oOperation.id)) { return; }
 				MessageBox.success(that.getText("deployImmediatelySuccess", [sName]));
 			}).catch(function (oErr) {
-				that.getModel("detailView").setProperty("/busy", false);
-				MessageBox.error(that.getText("deployImmediatelyError", [oErr.message]));
-			});
+				if (that._isCurrentLoad(oOperation.generation, oOperation.id)) { MessageBox.error(that.getText("deployImmediatelyError", [oErr.message])); }
+			}).finally(function () { that._finishOperation(oOperation); });
 		},
 
 		_doDeploy: function (sName) {
 			var that = this;
-			this.getModel("detailView").setProperty("/busy", true);
+			var oOperation = this._beginOperation();
+			if (!oOperation) { return; }
 			MessageToast.show(this.getText("deployStarted", [sName]));
-			BackendClient.deployIntegration(this._getConfigurationArtifactId(), this._collectParams()).then(function (oRes) {
-				that.getModel("detailView").setProperty("/busy", false);
-				that.getModel("detailView").setProperty("/dirty", false);
-				// Saved values become pristine after a successful deploy.
-				var oModel = that.getModel("parameters");
-				var aGroups = oModel.getProperty("/groups") || [];
-				aGroups.forEach(function (oGroup) {
-					oGroup.params.forEach(function (oParam) { oParam.pristineValue = oParam.value; });
-				});
-				oModel.setProperty("/groups", aGroups);
+			return BackendClient.deployIntegration(this._getConfigurationArtifactId(), this._collectParams()).then(function (oRes) {
+				if (!that._isCurrentLoad(oOperation.generation, oOperation.id)) { return; }
+				that._acceptSubmittedValues(oOperation);
 				if (oRes && oRes.status) {
 					that.getModel("integration").setProperty("/status", oRes.status);
 				}
 				MessageBox.success(that.getText("deploySuccess", [sName]));
 			}).catch(function (oErr) {
-				that.getModel("detailView").setProperty("/busy", false);
-				MessageBox.error(that.getText("deployError", [oErr.message]));
-			});
+				if (that._isCurrentLoad(oOperation.generation, oOperation.id)) { MessageBox.error(that.getText("deployError", [oErr.message])); }
+			}).finally(function () { that._finishOperation(oOperation); });
 		},
 
 		onOpenPayload: function (oEvent) {
+			var iGeneration = this._iLoadGeneration, sId = this._sId;
+			var iSelection = this._iPayloadSelection = (this._iPayloadSelection || 0) + 1;
 			var oCtx = oEvent.getSource().getBindingContext("payloads");
 			var oPayload = oCtx && oCtx.getObject();
 			if (!oPayload) {
@@ -1655,15 +1735,17 @@ sap.ui.define([
 				window.open(BackendClient.getPayloadDownloadUrl(oPayload.id), "_blank", "noopener");
 				return;
 			}
-			BackendClient.getPayload(oPayload.id).then(function (oDetail) {
+			return BackendClient.getPayload(oPayload.id).then(function (oDetail) {
+				if (!this._isCurrentLoad(iGeneration, sId) || this._iPayloadSelection !== iSelection) { return; }
 				if (!oDetail) {
 					MessageToast.show(this.getText("payloadNotFound"));
 					return;
 				}
 				oDetail.formattedPayload = this._formatPayload(oDetail.payload, oDetail.contentType);
 				this.getModel("payloadDetail").setData(oDetail);
-				this._openPayloadDialog();
+				return this._openPayloadDialog();
 			}.bind(this)).catch(function (oErr) {
+				if (!this._isCurrentLoad(iGeneration, sId) || this._iPayloadSelection !== iSelection) { return; }
 				MessageToast.show(this.getText("payloadLoadFailed", [oErr.message]));
 			}.bind(this));
 		},
@@ -1676,25 +1758,34 @@ sap.ui.define([
 		},
 
 		onClosePayloadDialog: function () {
+			this._iPayloadSelection = (this._iPayloadSelection || 0) + 1;
 			if (this._oPayloadDialog) {
 				this._oPayloadDialog.close();
 			}
 		},
 
 		_openPayloadDialog: function () {
+			var iGeneration = this._iLoadGeneration, sId = this._sId, iSelection = this._iPayloadSelection;
+			var isCurrent = function () { return this._isCurrentLoad(iGeneration, sId) && this._iPayloadSelection === iSelection; }.bind(this);
+			if (!isCurrent()) { return Promise.resolve(); }
+			if (this._pPayloadDialog) {
+				return this._pPayloadDialog.then(function () { if (isCurrent()) { return this._openPayloadDialog(); } }.bind(this));
+			}
 			if (this._oPayloadDialog) {
 				this._oPayloadDialog.open();
 				return;
 			}
-			Fragment.load({
+			this._pPayloadDialog = Fragment.load({
 				id: this.getView().getId(),
 				name: "integrationpulse.view.PayloadDialog",
 				controller: this
 			}).then(function (oDialog) {
+				if (!isCurrent()) { oDialog.destroy(); return; }
 				this._oPayloadDialog = oDialog;
 				this.getView().addDependent(oDialog);
 				oDialog.open();
-			}.bind(this));
+			}.bind(this)).finally(function () { this._pPayloadDialog = null; }.bind(this));
+			return this._pPayloadDialog;
 		},
 
 		_formatPayload: function (sPayload, sContentType) {
@@ -1716,6 +1807,19 @@ sap.ui.define([
 		},
 
 		onExit: function () {
+			this._bExited = true;
+			this._bDetailActive = false;
+			this._iLoadGeneration += 1;
+			this.getRouter().getRoute("integrationDetail").detachPatternMatched(this._onMatched, this);
+			this.getRouter().detachRouteMatched(this._onAnyRouteMatched, this);
+			this._closeDetailDialogs();
+		},
+
+		_closeDetailDialogs: function () {
+			this._iEdmxUpload = (this._iEdmxUpload || 0) + 1;
+			this._closeEdmxProgressDialog();
+			this._iPayloadSelection = (this._iPayloadSelection || 0) + 1;
+			if (this._oPulseRunDialog) { this._oPulseRunDialog.close(); }
 			if (this._oPayloadDialog) {
 				this._oPayloadDialog.destroy();
 				this._oPayloadDialog = null;

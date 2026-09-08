@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import List
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 import btp_client
 from models import MessageLog, MonitoringItem
@@ -15,12 +15,21 @@ from models import MessageLog, MonitoringItem
 router = APIRouter(prefix="/api/monitoring", tags=["monitoring"])
 
 
+@router.get("/by-id", response_model=MonitoringItem)
+async def monitoring_by_id(integrationId: str = Query(...)):
+    return await get_monitoring_item(integrationId)
+
+
+@router.get("/by-id/logs", response_model=List[MessageLog])
+async def logs_by_id(integrationId: str = Query(...)):
+    return await get_message_logs(integrationId)
+
+
 @router.get("", response_model=List[MonitoringItem])
 async def list_monitoring():
     return await btp_client.list_monitoring()
 
 
-@router.get("/{integration_id}", response_model=MonitoringItem)
 async def get_monitoring_item(integration_id: str):
     item = await btp_client.get_monitoring_item(integration_id)
     if not item:
@@ -31,3 +40,6 @@ async def get_monitoring_item(integration_id: str):
 @router.get("/{integration_id}/logs", response_model=List[MessageLog])
 async def get_message_logs(integration_id: str):
     return await btp_client.get_message_logs(integration_id)
+
+
+router.add_api_route("/{integration_id:path}", get_monitoring_item, methods=["GET"], response_model=MonitoringItem)

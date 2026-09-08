@@ -1,7 +1,8 @@
 sap.ui.define([
 	"sap/base/Log",
-	"integrationpulse/service/config"
-], function (Log, config) {
+	"integrationpulse/service/config",
+	"integrationpulse/model/formatter"
+], function (Log, config, formatter) {
 	"use strict";
 
 	// BackendClient is the frontend's data access boundary. Controllers call this
@@ -141,7 +142,11 @@ sap.ui.define([
 	}
 
 	function odataResults(oData) {
-		return (oData && oData.d && oData.d.results) || [];
+		var aRows = oData && oData.d && oData.d.results;
+		if (!Array.isArray(aRows) || aRows.some(function (oRow) { return !oRow || typeof oRow !== "object" || Array.isArray(oRow); })) {
+			throw new Error("Integration Suite returned an invalid collection response.");
+		}
+		return aRows;
 	}
 
 	function odataEntity(oData) {
@@ -271,16 +276,25 @@ sap.ui.define([
 		return (config.destinationBaseUrl || "/api/v1") + sPath;
 	}
 
+	function getProxyItemUrl(sCollection, sId, sAction) {
+		return config.backendBaseUrl + "/api/" + sCollection + "/by-id" + (sAction || "") +
+			"?integrationId=" + encodeURIComponent(sId);
+	}
+
 	function getDesignTimeEntityForCandidate(sDesignTimeId, sVersion) {
 		var sPath = "/IntegrationDesigntimeArtifacts(Id=" + odataLiteral(sDesignTimeId) +
 			",Version=" + odataLiteral(sVersion) + ")";
 		return getJSON(getDestinationUrl(sPath)).then(function (d) {
-			return mapDesignTimeMetadata(odataEntity(d));
+			var oEntity = odataEntity(d);
+			if (!oEntity || typeof oEntity.Id !== "string" || !oEntity.Id) {
+				throw new Error("Integration Suite returned an invalid artifact identity.");
+			}
+			return mapDesignTimeMetadata(oEntity);
 		});
 	}
 
 	function uniqueValues(aValues) {
-		var mSeen = {};
+		var mSeen = Object.create(null);
 		return aValues.filter(function (sValue) {
 			if (!sValue || mSeen[sValue]) {
 				return false;
@@ -442,16 +456,13 @@ sap.ui.define([
 			0
 		).then(function (oDesignTimeItem) {
 			if (!oDesignTimeItem) {
-				return Object.assign({}, oRuntimeItem, {
-					sender: "",
-					receiver: ""
-				});
+				return Object.assign({}, oRuntimeItem);
 			}
 			mDesignTimeMetadataCache[sCacheKey] = {
 				designTimeId: oDesignTimeItem.id || oRuntimeItem.designTimeId,
 				designTimeVersion: oDesignTimeItem.designTimeVersion || oRuntimeItem.designTimeVersion,
-				sender: oDesignTimeItem.sender || "",
-				receiver: oDesignTimeItem.receiver || "",
+				sender: oDesignTimeItem.sender || oRuntimeItem.sender || "",
+				receiver: oDesignTimeItem.receiver || oRuntimeItem.receiver || "",
 				packageName: oRuntimeItem.packageName || oDesignTimeItem.packageName,
 				name: oRuntimeItem.name || oDesignTimeItem.name || oRuntimeItem.id
 			};
@@ -493,6 +504,57 @@ sap.ui.define([
 		return getDestinationIntegrations().then(function (aItems) {
 			var oItem = aItems.filter(function (o) { return o.id === sId; })[0] || null;
 			return oItem ? withDesignTimeMetadata(oItem) : null;
+		});
+	}
+
+	function getRecentLogCounts(sId, nNow) {
+		var nSince = nNow - 24 * 60 * 60 * 1000;
+		var sFilter = "IntegrationFlowName eq " + odataFilterLiteral(sId) +
+			" and LogEnd ge datetime'" + new Date(nSince).toISOString().slice(0, 19) + "'";
+		var sUrl = getDestinationUrl("/MessageProcessingLogs?$filter=" + encodeURIComponent(sFilter) +
+			"&$orderby=LogEnd%20desc&$top=1000&$format=json");
+		var mPages = Object.create(null), mMessages = Object.create(null);
+		var oCounts = { messages24h: 0, errors24h: 0 };
+		function nextPage(sPage) {
+			if (mPages[sPage]) { return Promise.reject(new Error("Integration Suite returned a repeated log page.")); }
+			mPages[sPage] = true;
+			return getJSON(sPage).then(function (d) {
+				odataResults(d).map(mapMessageLog).forEach(function (oLog) {
+					var nTime = formatter.timestamp(oLog.logEnd);
+					if (!(nTime >= nSince && nTime <= nNow) || String(oLog.status).toUpperCase() === "DISCARDED" ||
+						(oLog.messageId && mMessages[oLog.messageId])) { return; }
+					if (oLog.messageId) { mMessages[oLog.messageId] = true; }
+					oCounts.messages24h += 1;
+					if (String(oLog.status).toUpperCase() === "FAILED") { oCounts.errors24h += 1; }
+				});
+				if (!d.d.__next) { return oCounts; }
+				if (typeof d.d.__next !== "string") { throw new Error("Integration Suite returned an invalid log page link."); }
+				var oExpected = new URL(getDestinationUrl("/MessageProcessingLogs"), window.location.href);
+				var oNext = new URL(d.d.__next, new URL(sPage, window.location.href));
+				if (["https:", "http:"].indexOf(oNext.protocol) < 0 || oNext.pathname !== oExpected.pathname || oNext.username || oNext.password || oNext.hash) {
+					throw new Error("Integration Suite returned an invalid log page link.");
+				}
+				// SAP may return its tenant origin in __next. Keep browser requests
+				// on the configured destination route; never follow that origin.
+				return nextPage(oExpected.origin + oExpected.pathname + oNext.search);
+			});
+		}
+		return nextPage(sUrl);
+	}
+
+	function getDestinationMonitoring(aRuntimeItems) {
+		return (aRuntimeItems ? Promise.resolve(aRuntimeItems) : getDestinationIntegrations()).then(function (aItems) {
+			var nNow = Date.now(), iNext = 0;
+			var aResults = new Array(aItems.length);
+			function worker() {
+				if (iNext >= aItems.length) { return Promise.resolve(); }
+				var iIndex = iNext++, oItem = applyCachedDesignTimeMetadata(aItems[iIndex]);
+				return getRecentLogCounts(oItem.id, nNow).then(function (oCounts) {
+					aResults[iIndex] = Object.assign({}, oItem, oCounts);
+					return worker();
+				});
+			}
+			return Promise.all(Array(Math.min(6, aItems.length)).fill(0).map(worker)).then(function () { return aResults; });
 		});
 	}
 
@@ -770,7 +832,7 @@ sap.ui.define([
 			if (LIVE_MODE === "destination") {
 				return getDestinationIntegration(sId);
 			}
-			return getJSON(config.backendBaseUrl + "/api/integrations/" + encodeURIComponent(sId));
+			return getJSON(getProxyItemUrl("integrations", sId));
 		},
 
 		/**
@@ -789,7 +851,7 @@ sap.ui.define([
 			if (LIVE_MODE === "destination") {
 				return getDestinationConfigurations(sId, oIntegration);
 			}
-			return getJSON(config.backendBaseUrl + "/api/integrations/" + encodeURIComponent(sId) + "/configurations");
+			return getJSON(getProxyItemUrl("integrations", sId, "/configurations"));
 		},
 
 		/**
@@ -807,7 +869,7 @@ sap.ui.define([
 				return updateDestinationConfigurations(sId, aConfigurations);
 			}
 			return sendJSON(
-				config.backendBaseUrl + "/api/integrations/" + encodeURIComponent(sId) + "/configurations",
+				getProxyItemUrl("integrations", sId, "/configurations"),
 				"PUT",
 				{ configurations: aConfigurations }
 			);
@@ -829,7 +891,7 @@ sap.ui.define([
 				return deployDestinationIntegration(sId, aConfigurations);
 			}
 			return sendJSON(
-				config.backendBaseUrl + "/api/integrations/" + encodeURIComponent(sId) + "/deploy",
+				getProxyItemUrl("integrations", sId, "/deploy"),
 				"POST",
 				{ configurations: aConfigurations }
 			);
@@ -851,7 +913,7 @@ sap.ui.define([
 				return triggerDestinationIntegration(oIntegration || { id: sId }, oRunOptions || {});
 			}
 			return sendJSON(
-				config.backendBaseUrl + "/api/integrations/" + encodeURIComponent(sId) + "/trigger",
+				getProxyItemUrl("integrations", sId, "/trigger"),
 				"POST",
 				Object.assign({ endpoint: oIntegration && oIntegration.endpoint }, oRunOptions || {})
 			);
@@ -862,30 +924,14 @@ sap.ui.define([
 		 * Destination live: GET /api/v1/IntegrationRuntimeArtifacts
 		 * Proxy live: GET {backend}/api/monitoring
 		 */
-		getMonitoring: function () {
+		getMonitoring: function (aRuntimeItems) {
 			if (USE_MOCK) {
 				return getJSON(MOCK_ROOT + "/runtimeStatus.json").then(function (d) {
 					return delay(250).then(function () { return d.value; });
 				});
 			}
 			if (LIVE_MODE === "destination") {
-				return getDestinationIntegrations().then(function (aItems) {
-					return aItems.map(function (o) {
-						var oWithMetadata = applyCachedDesignTimeMetadata(o);
-						return {
-							id: oWithMetadata.id,
-							name: oWithMetadata.name,
-							packageName: oWithMetadata.packageName,
-							sender: oWithMetadata.sender,
-							receiver: oWithMetadata.receiver,
-							endpoint: "",
-							status: oWithMetadata.status,
-							messages24h: 0,
-							errors24h: 0,
-							lastDeployed: oWithMetadata.lastDeployed
-						};
-					});
-				});
+				return getDestinationMonitoring(aRuntimeItems);
 			}
 			return getJSON(config.backendBaseUrl + "/api/monitoring");
 		},
@@ -901,7 +947,7 @@ sap.ui.define([
 					return aItems.filter(function (o) { return o.id === sId; })[0] || null;
 				});
 			}
-			return getJSON(config.backendBaseUrl + "/api/monitoring/" + encodeURIComponent(sId));
+			return getJSON(getProxyItemUrl("monitoring", sId));
 		},
 
 		/**
@@ -925,7 +971,7 @@ sap.ui.define([
 					return visibleMessageLogs(odataResults(d).map(mapMessageLog));
 				});
 			}
-			return getJSON(config.backendBaseUrl + "/api/monitoring/" + encodeURIComponent(sId) + "/logs")
+			return getJSON(getProxyItemUrl("monitoring", sId, "/logs"))
 				.then(visibleMessageLogs);
 		},
 

@@ -8,6 +8,7 @@ from urllib.parse import unquote
 from support import auth, btp_client as btp, config, main, httpx, FIXTURES, transport_patch, deny_http, sap_response
 from fastapi.testclient import TestClient
 from models import ConfigurationUpdate
+from errors import InvalidUpstreamResponse
 
 class Contracts(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
@@ -90,7 +91,7 @@ class Contracts(unittest.IsolatedAsyncioTestCase):
     async def test_get_malformed_and_empty_upstream_json_fail(self):
         for content in [b'', b'{broken']:
             def handler(r): return sap_response(r) if r.url.host == 'oauth.test' else httpx.Response(200, content=content)
-            with self.subTest(content=content), transport_patch(handler), self.assertRaises(ValueError): await btp.list_integrations()
+            with self.subTest(content=content), transport_patch(handler), self.assertRaises(InvalidUpstreamResponse): await btp.list_integrations()
 
     async def test_oauth_cache_refresh_and_failure(self):
         calls = []
@@ -116,7 +117,6 @@ class Contracts(unittest.IsolatedAsyncioTestCase):
             self.assertEqual((await btp.deploy_integration(integration_id, [])).status, 'STARTING')
             self.assertEqual((await btp.trigger_immediate_run(integration_id)).status, 'TRIGGERED')
 
-    @unittest.expectedFailure
     async def test_QA_20_shipped_mock_catalog_must_satisfy_response_schema(self):
         error = None
         with patch.object(config.SETTINGS, 'use_mock', True):
@@ -124,14 +124,12 @@ class Contracts(unittest.IsolatedAsyncioTestCase):
             except ValueError as exc: error = str(exc)
         self.assertIsNone(error, error)
 
-    @unittest.expectedFailure
     async def test_QA_12_proxy_log_filter_double_encodes_sensitive_id(self):
         calls = []
         def handler(r): calls.append(r); return sap_response(r)
         with transport_patch(handler): await btp.get_message_logs("Space O'Brien/%+&")
         self.assertEqual(calls[-1].url.params['$filter'], "IntegrationFlowName eq 'Space O''Brien/%+&'")
 
-    @unittest.expectedFailure
     async def test_QA_13_proxy_forwards_token_to_arbitrary_endpoint(self):
         calls = []
         def handler(r): calls.append(r); return httpx.Response(200, json={'access_token': 'qa-dummy-token'})
@@ -141,7 +139,6 @@ class Contracts(unittest.IsolatedAsyncioTestCase):
         # MockTransport captures the request. No connection to this host occurs.
         self.assertFalse(any(r.url.host == 'untrusted.test' and 'authorization' in r.headers for r in calls))
 
-    @unittest.expectedFailure
     async def test_QA_14_unresolved_proxy_identity_must_block_deploy(self):
         calls = []
         def handler(r):
@@ -181,13 +178,11 @@ class Routes(unittest.TestCase):
         self.assertNotIn('access-control-allow-origin', denied.headers)
         self.assertEqual(self.client.get('/health').headers['content-security-policy'], "frame-ancestors 'self';")
 
-    @unittest.expectedFailure
     def test_QA_15_upstream_failure_should_be_controlled_gateway_error(self):
         with transport_patch(lambda r: httpx.Response(503, text='upstream unavailable')):
             response = self.client.get('/api/integrations')
         self.assertIn(response.status_code, [502, 503, 504])
 
-    @unittest.expectedFailure
     def test_QA_16_encoded_slash_id_should_reach_integration_route(self):
         def handler(r):
             if r.url.path.endswith('/IntegrationRuntimeArtifacts'): return httpx.Response(200, json={'d': {'results': [{'Id': 'a/b', 'Name': 'a/b'}]}})
@@ -195,11 +190,11 @@ class Routes(unittest.TestCase):
         with transport_patch(handler): response = self.client.get('/api/integrations/a%2Fb')
         self.assertEqual(response.status_code, 200)
 
-    @unittest.expectedFailure
     def test_QA_17_live_monitoring_should_not_claim_zero_when_logs_exist(self):
+        captured_at = datetime.now(timezone.utc).isoformat()
         def handler(r):
             if r.url.path.endswith('/MessageProcessingLogs'):
-                return httpx.Response(200, json={'d': {'results': [{'MessageGuid': 'recent', 'Status': 'COMPLETED', 'LogEnd': datetime.now(timezone.utc).isoformat()}]}})
+                return httpx.Response(200, json={'d': {'results': [{'MessageGuid': 'recent', 'Status': 'COMPLETED', 'LogEnd': captured_at}]}})
             return sap_response(r)
         with transport_patch(handler):
             logs = self.client.get('/api/monitoring/runtime-id/logs').json()

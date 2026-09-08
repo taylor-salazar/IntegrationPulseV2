@@ -17,6 +17,7 @@
 	},
 	"devDependencies": {
 		"@sap/ux-ui5-tooling": "^1.20.3",
-		"@ui5/cli": "^3.11.0"
+		"@ui5/cli": "^3.11.0",
+		"@xmldom/xmldom": "0.8.10"
 	}
 }

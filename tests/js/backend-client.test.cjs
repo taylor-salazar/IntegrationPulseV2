@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { ROOT, harness, json, odata, plain, deferred, flush, defect } = require('./helpers.cjs');
+const { ROOT, harness, json, odata, plain, deferred, flush, regression } = require('./helpers.cjs');
 const fixtures = require('../fixtures/contracts.json');
 const client = h => h.load('webapp/service/BackendClient.js');
 function sapBoundary(url, options) {
@@ -125,10 +125,11 @@ test('real controller → additive query → real client → all three headers',
   assert.match(options.pulseQuery, /companyNav,managerNav/);
   assert.deepEqual(Object.fromEntries(plain(d._collectParams()).map(p => [p.key, p.value])), Object.fromEntries(fixtures.parameters.map(p => [p.key, p.value])));
 });
-test('proxy request contracts encode path and serialize bodies/204', async () => {
+test('proxy request contracts encode query identity and serialize bodies/204', async () => {
   const h = harness({ search: '?mock=false&api=proxy', fetch: () => new Response(null, { status: 204 }) });
   const c = client(h); await c.updateConfigurations('a %+/b', fixtures.parameters); await c.deployIntegration('a %+/b', []); await c.triggerImmediateRun({ id: 'a %+/b', endpoint: '/run' }, { pulseQuery: '$select=a' });
-  assert.ok(h.calls.every(c => c.url.startsWith('http://proxy.test/api/integrations/a%20%25%2B%2Fb/')));
+  assert.ok(h.calls.every(c => c.url.startsWith('http://proxy.test/api/integrations/by-id/')));
+  assert.ok(h.calls.every(c => new URL(c.url).searchParams.get('integrationId') === 'a %+/b'));
   assert.deepEqual(JSON.parse(h.calls[0].body), { configurations: fixtures.parameters });
   assert.equal(h.calls[0].method, 'PUT'); assert.equal(JSON.parse(h.calls[2].body).pulseQuery, '$select=a');
 });
@@ -147,12 +148,12 @@ test('metadata queue caps concurrent requests at six and caches repeated work', 
   while (pending.length) { pending.splice(0).forEach(resolve => resolve()); await flush(); }
   assert.equal((await p).length, 24); assert.equal(peak, 6); assert.equal(h.calls.length, 25);
 });
-defect('QA-01', 'failed enrichment erases valid runtime source/target', async () => {
+regression('QA-01', 'failed enrichment erases valid runtime source/target', async () => {
   const h = harness({ fetch: url => url.endsWith('/IntegrationRuntimeArtifacts') ? odata([fixtures.runtime]) : new Response('unavailable', { status: 404 }) });
   const rows = await client(h).getIntegrationsWithMetadata();
   assert.equal(rows[0].sender, fixtures.runtime.Sender);
 });
-defect('QA-02', 'malformed successful configuration response is accepted as empty', async () => {
+regression('QA-02', 'malformed successful configuration response is accepted as empty', async () => {
   const h = harness({ fetch: () => json({ unexpected: 'shape' }) }); let error;
   try { await client(h).getConfigurations('id', {}); } catch (e) { error = e; }
   assert.ok(error, 'Malformed response must not be treated as a valid empty configuration');

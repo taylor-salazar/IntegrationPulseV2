@@ -251,8 +251,9 @@
 					expanded="false"
 					class="sapUiSmallMarginTop ipPanel">
 					<content>
+						<MessageStrip visible="{= !!${detailView>/payloadError} }" text="{detailView>/payloadError}" type="Error" showIcon="true"/>
 						<MessageStrip
-							visible="{= ${payloads>/items}.length === 0 }"
+							visible="{= ${payloads>/items}.length === 0 &amp;&amp; !${detailView>/payloadError} }"
 							text="{i18n>noPayloads}"
 							type="Information"
 							showIcon="true"

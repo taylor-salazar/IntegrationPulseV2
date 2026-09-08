@@ -5,8 +5,9 @@ sap.ui.define([
 	"integrationpulse/service/ReviewStore",
 	"sap/ui/core/Fragment",
 	"sap/m/MessageToast",
-	"sap/m/MessageBox"
-], function (BaseController, JSONModel, BackendClient, ReviewStore, Fragment, MessageToast, MessageBox) {
+	"sap/m/MessageBox",
+	"integrationpulse/model/formatter"
+], function (BaseController, JSONModel, BackendClient, ReviewStore, Fragment, MessageToast, MessageBox, formatter) {
 	"use strict";
 
 	// Monitoring Detail controller: shows Message Processing Logs for either one
@@ -224,7 +225,7 @@ sap.ui.define([
 				}
 			});
 			var oLatest = aLogs.slice().sort(function (a, b) {
-				return new Date(b.logEnd || 0).getTime() - new Date(a.logEnd || 0).getTime();
+				return (formatter.timestamp(b.logEnd) || 0) - (formatter.timestamp(a.logEnd) || 0);
 			})[0];
 			if (oLatest) {
 				oSummary.latestStatus = oLatest.status;

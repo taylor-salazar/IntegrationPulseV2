@@ -20,14 +20,17 @@ from __future__ import annotations
 import json
 import os
 import re
+import asyncio
+from datetime import datetime, timedelta, timezone
 from typing import List
 from urllib.parse import quote
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit, urlunsplit, unquote
 
 import httpx
 
 from config import SETTINGS
 from auth import get_access_token
+from errors import InvalidRuntimeEndpoint, InvalidUpstreamResponse
 from models import (
     Configuration,
     ConfigurationUpdate,
@@ -62,11 +65,21 @@ async def _is_get(path: str) -> dict:
             headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
         )
         resp.raise_for_status()
-        return resp.json()
+        try:
+            data = resp.json()
+        except ValueError as exc:
+            raise InvalidUpstreamResponse("Integration Suite returned invalid JSON.") from exc
+        if not isinstance(data, dict):
+            raise InvalidUpstreamResponse("Integration Suite returned an invalid response object.")
+        return data
 
 
 def _odata_results(data: dict) -> List[dict]:
-    return data.get("d", {}).get("results", [])
+    envelope = data.get("d") if isinstance(data, dict) else None
+    rows = envelope.get("results") if isinstance(envelope, dict) else None
+    if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+        raise InvalidUpstreamResponse("Integration Suite returned an invalid collection response.")
+    return rows
 
 
 def _unique_values(values: List[str]) -> List[str]:
@@ -185,11 +198,14 @@ async def _resolve_design_time_identity(integration_id: str) -> tuple[str, str]:
                 f"Version={_odata_literal(version)})"
             )
             try:
-                await _is_get(path)
+                data = await _is_get(path)
+                entity = data.get("d", data)
+                if not isinstance(entity, dict) or not isinstance(entity.get("Id"), str) or not entity["Id"]:
+                    raise InvalidUpstreamResponse("Integration Suite returned an invalid artifact identity.")
                 return candidate_id, version
             except httpx.HTTPStatusError:
                 continue
-    return integration_id, "Active"
+    raise RuntimeError("Integration design time artifact not found")
 
 
 # --------------------------------------------------------------------------- #
@@ -197,7 +213,8 @@ async def _resolve_design_time_identity(integration_id: str) -> tuple[str, str]:
 # --------------------------------------------------------------------------- #
 async def list_integrations() -> List[Integration]:
     if SETTINGS.use_mock:
-        return [Integration(**o) for o in _load_mock("integrations.json")["value"]]
+        return [Integration(**{**o, "sender": o.get("sender") or "", "receiver": o.get("receiver") or ""})
+                for o in _load_mock("integrations.json")["value"]]
 
     # >>> PLACEHOLDER: GET /IntegrationRuntimeArtifacts <<<
     data = await _is_get("/IntegrationRuntimeArtifacts")
@@ -260,12 +277,12 @@ async def get_configurations(integration_id: str) -> List[Configuration]:
             break
     if data is None:
         raise RuntimeError("Integration design time artifact not found")
-    results = data.get("d", {}).get("results", [])
+    results = _odata_results(data)
     return [
         Configuration(
             key=r.get("ParameterKey", ""),
             label=r.get("ParameterKey", ""),
-            value=r.get("ParameterValue", ""),
+            value=r.get("ParameterValue") if r.get("ParameterValue") is not None else "",
             dataType=r.get("DataType", "xsd:string"),
         )
         for r in results
@@ -379,12 +396,37 @@ def _tenant_runtime_base() -> str:
 
 
 def _join_runtime_endpoint(endpoint: str) -> str:
-    if re.match(r"^https?://", endpoint or "", re.IGNORECASE):
-        return endpoint
-    path = str(endpoint or "").strip()
-    if path and not path.startswith("/http/") and path != "/http":
-        path = "/http/" + path.lstrip("/")
-    return urljoin(_tenant_runtime_base() + "/", path.lstrip("/"))
+    """Only send tenant credentials to the configured HTTPS runtime origin."""
+    raw = str(endpoint or "").strip()
+    def origin(parts):
+        return (parts.scheme.lower(), (parts.hostname or "").lower(), parts.port or 443)
+    try:
+        base = urlsplit(_tenant_runtime_base())
+        target = urlsplit(raw)
+        if base.scheme.lower() != "https" or not base.hostname or base.username or base.password:
+            raise ValueError("Invalid runtime base")
+        if not raw or raw.startswith("//") or target.username or target.password or target.fragment:
+            raise ValueError("Invalid runtime address")
+        if target.scheme or target.netloc:
+            if origin(target) != origin(base):
+                raise ValueError("Untrusted runtime origin")
+            path = target.path
+        else:
+            path = target.path
+            if path != "/http" and not path.startswith("/http/"):
+                path = "/http/" + path.lstrip("/")
+        # Reject nested encoding rather than letting later proxies reinterpret
+        # escaped path separators, dot segments or control characters.
+        decoded = unquote(path)
+        if "%" in decoded or "\\" in decoded or any(ord(c) < 32 or ord(c) == 127 for c in raw + decoded):
+            raise ValueError("Invalid runtime path")
+        if any(segment in {".", ".."} for segment in decoded.split("/")):
+            raise ValueError("Runtime path traversal")
+        if not path.startswith("/http/") or not decoded.startswith("/http/") or decoded == "/http/":
+            raise ValueError("HTTPS sender path required")
+        return urlunsplit((base.scheme, base.netloc, path, target.query, ""))
+    except ValueError as exc:
+        raise InvalidRuntimeEndpoint("Immediate run requires an HTTPS sender path on the configured runtime host.") from exc
 
 
 async def trigger_immediate_run(
@@ -409,6 +451,9 @@ async def trigger_immediate_run(
     if not resolved_endpoint:
         raise RuntimeError("No HTTPS sender endpoint is available for this integration.")
 
+    runtime_url = _join_runtime_endpoint(resolved_endpoint)
+    if any(any(ord(char) < 32 or ord(char) > 126 for char in value) for value in [entity, pulse_query]):
+        raise InvalidRuntimeEndpoint("Immediate-run headers require printable ASCII; percent-encode query values.")
     token = await get_access_token()
     headers = {
         "Authorization": f"Bearer {token}",
@@ -424,7 +469,7 @@ async def trigger_immediate_run(
         headers["X-Pulse-Query"] = pulse_query
     async with httpx.AsyncClient(timeout=120) as client:
         resp = await client.post(
-            _join_runtime_endpoint(resolved_endpoint),
+            runtime_url,
             headers=headers,
             content="{}",
         )
@@ -443,21 +488,77 @@ async def list_monitoring() -> List[MonitoringItem]:
     if SETTINGS.use_mock:
         return [MonitoringItem(**o) for o in _load_mock("runtimeStatus.json")["value"]]
 
-    # >>> PLACEHOLDER: GET /IntegrationRuntimeArtifacts + MessageProcessingLogs aggregation <<<
     data = await _is_get("/IntegrationRuntimeArtifacts")
-    results = data.get("d", {}).get("results", [])
+    results = _odata_results(data)
+    now = datetime.now(timezone.utc)
+    semaphore = asyncio.Semaphore(6)
+    async def summarize(raw):
+        async with semaphore:
+            logs = await _get_recent_logs(raw.get("Id", ""), now)
+        return len(logs), sum(str(log.get("Status") or "").upper() == "FAILED" for log in logs)
+    counts = await asyncio.gather(*(summarize(raw) for raw in results))
     return [
         MonitoringItem(
             id=r.get("Id", ""),
             name=r.get("Name", r.get("Id", "")),
             packageName=r.get("PackageId", ""),
             status=r.get("Status", "STOPPED"),
-            sender=r.get("Sender", ""),
-            receiver=r.get("Receiver", ""),
+            sender=r.get("Sender") or "",
+            receiver=r.get("Receiver") or "",
+            messages24h=count[0],
+            errors24h=count[1],
             lastDeployed=r.get("DeployedOn"),
         )
-        for r in results
+        for r, count in zip(results, counts)
     ]
+
+
+def _log_time(value):
+    match = re.fullmatch(r"/Date\((-?\d+)(?:[+-]\d+)?\)/", str(value or ""))
+    try:
+        if match:
+            return datetime.fromtimestamp(int(match[1]) / 1000, tz=timezone.utc)
+        result = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return result.replace(tzinfo=timezone.utc) if result.tzinfo is None else result.astimezone(timezone.utc)
+    except (ValueError, TypeError, OverflowError, OSError):
+        return None
+
+
+async def _get_recent_logs(integration_id: str, now: datetime) -> List[dict]:
+    since = now - timedelta(hours=24)
+    filter_expr = (f"IntegrationFlowName eq {_odata_filter_literal(integration_id)} and "
+                   f"LogEnd ge datetime'{since.strftime('%Y-%m-%dT%H:%M:%S')}'")
+    path = "/MessageProcessingLogs?$filter=" + quote(filter_expr, safe="") + "&$orderby=LogEnd%20desc&$top=1000&$format=json"
+    rows, seen_pages, seen_ids = [], set(), set()
+    while path:
+        if path in seen_pages:
+            raise InvalidUpstreamResponse("Integration Suite returned a repeated log page.")
+        seen_pages.add(path)
+        data = await _is_get(path)
+        for log in _odata_results(data):
+            stamp = _log_time(log.get("LogEnd"))
+            message_id = log.get("MessageGuid")
+            if stamp and since <= stamp <= now and str(log.get("Status") or "").upper() != "DISCARDED":
+                if message_id and message_id in seen_ids:
+                    continue
+                if message_id:
+                    seen_ids.add(message_id)
+                rows.append(log)
+        next_url = data["d"].get("__next")
+        if not next_url:
+            break
+        if not isinstance(next_url, str):
+            raise InvalidUpstreamResponse("Integration Suite returned an invalid log page link.")
+        try:
+            full = urlsplit(urljoin(SETTINGS.is_api_base + path, next_url))
+            base = urlsplit(SETTINGS.is_api_base)
+        except ValueError as exc:
+            raise InvalidUpstreamResponse("Integration Suite returned an invalid log page link.") from exc
+        expected_path = base.path.rstrip("/") + "/MessageProcessingLogs"
+        if full.scheme != base.scheme or full.netloc != base.netloc or full.path != expected_path or full.fragment:
+            raise InvalidUpstreamResponse("Integration Suite returned an invalid log page link.")
+        path = "/MessageProcessingLogs" + ("?" + full.query if full.query else "")
+    return rows
 
 
 async def get_monitoring_item(integration_id: str) -> MonitoringItem | None:
@@ -473,14 +574,14 @@ async def get_message_logs(integration_id: str) -> List[MessageLog]:
         return [MessageLog(**o) for o in raw]
 
     # >>> PLACEHOLDER: GET /MessageProcessingLogs?$filter=IntegrationFlowName eq '..' <<<
-    filter_expr = f"IntegrationFlowName eq {_odata_literal(integration_id)}"
+    filter_expr = f"IntegrationFlowName eq {_odata_filter_literal(integration_id)}"
     encoded_filter = quote(filter_expr, safe="=$'()")
     path = (
         f"/MessageProcessingLogs?$filter={encoded_filter}"
         "&$orderby=LogEnd%20desc&$top=50&$format=json"
     )
     data = await _is_get(path)
-    results = data.get("d", {}).get("results", [])
+    results = _odata_results(data)
     return [
         MessageLog(
             messageId=r.get("MessageGuid", ""),

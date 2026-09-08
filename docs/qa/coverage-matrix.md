@@ -1,5 +1,9 @@
 # Release audit coverage matrix
 
+> **Current status after approved fixes (2026-09-08): 143 ordinary passing tests; QA-01–QA-22 fixed.** Added coverage includes exact UTC 24-hour boundaries, pagination/deduplication/failure, six-request monitoring concurrency, runtime endpoint origin validation before OAuth, controlled gateway errors, slash/reserved query identities, stale mutations/payload fragments, lossless query options and edited cron tokens. One Monitoring runtime read and one review-map read are now verified. See [implementation](approved-fixes.md) and [validation](validation.md).
+>
+> The matrix below preserves the **original audit coverage snapshot** (including “reproduced,” “provisional,” “absent” and “deferred” descriptions). Current automated outcomes supersede those descriptions; external UI/SAP/PostgreSQL boundaries remain manual.
+
 Scope: active root application; `source-repo/` is historical reference, not an executable test suite. No existing root tests or CI were present. Node built-in `node:test` and Python `unittest` reuse installed runtimes; FastAPI/httpx provide backend test boundaries. No production changes are authorized.
 
 This matrix tracks local execution separately from BAS/SAP validation. Initial coverage for every row: **none**. Status is updated after execution. Test files use real application modules with external boundaries replaced.

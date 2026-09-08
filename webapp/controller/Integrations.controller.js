@@ -365,6 +365,7 @@ sap.ui.define([
 		},
 
 		onDeployFromCard: function (oEvent) {
+			if (this._bDeployConfirmOpen) { return; }
 			var oCtx = this._getIntegrationContext(oEvent.getSource());
 			var sId = oCtx ? oCtx.getProperty("id") : this._getIntegrationIdFromCustomData(oEvent.getSource());
 			var oIntegration = oCtx ? oCtx.getObject() : this._aAllItems.filter(function (oItem) {
@@ -374,12 +375,14 @@ sap.ui.define([
 				return;
 			}
 
+			this._bDeployConfirmOpen = true;
 			MessageBox.confirm(this.getText("quickDeployConfirmText", [oIntegration.name]), {
 				title: this.getText("deployConfirmTitle"),
 				icon: MessageBox.Icon.WARNING,
 				actions: [MessageBox.Action.OK, MessageBox.Action.CANCEL],
 				emphasizedAction: MessageBox.Action.OK,
 				onClose: function (sAction) {
+					this._bDeployConfirmOpen = false;
 					if (sAction === MessageBox.Action.OK) {
 						this._deployFromCard(oIntegration);
 					}
@@ -388,17 +391,21 @@ sap.ui.define([
 		},
 
 		_deployFromCard: function (oIntegration) {
+			this._mDeploying = this._mDeploying || Object.create(null);
+			if (this._mDeploying[oIntegration.id]) { return; }
+			this._mDeploying[oIntegration.id] = true;
 			var oViewModel = this.getModel("view");
 			oViewModel.setProperty("/deployingId", oIntegration.id);
 			MessageToast.show(this.getText("deployStarted", [oIntegration.name]));
 
-			BackendClient.deployIntegration(oIntegration.id, []).then(function (oRes) {
-				oViewModel.setProperty("/deployingId", "");
+			return BackendClient.deployIntegration(oIntegration.id, []).then(function (oRes) {
 				this._updateIntegrationStatus(oIntegration.id, oRes && oRes.status);
 				MessageBox.success(this.getText("deploySuccess", [oIntegration.name]));
 			}.bind(this)).catch(function (oErr) {
-				oViewModel.setProperty("/deployingId", "");
 				MessageBox.error(this.getText("deployError", [oErr.message]));
+			}.bind(this)).finally(function () {
+				delete this._mDeploying[oIntegration.id];
+				if (oViewModel.getProperty("/deployingId") === oIntegration.id) { oViewModel.setProperty("/deployingId", ""); }
 			}.bind(this));
 		},
 

@@ -189,7 +189,8 @@ def list_payloads(integration_id: str) -> list[dict]:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT *
+                SELECT id, integration_id, message_id, file_name, content_type,
+                       size_bytes, created_at, expires_at, preview_available, download_only
                 FROM integration_payloads
                 WHERE integration_id = %s AND expires_at > NOW()
                 ORDER BY created_at DESC

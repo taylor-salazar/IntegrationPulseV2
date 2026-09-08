@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { harness, json, odata, deferred, flush, plain, defect, Model } = require('./helpers.cjs');
+const { harness, json, odata, deferred, flush, plain, regression, Model } = require('./helpers.cjs');
 const fixtures = require('../fixtures/contracts.json');
 
 test('Component invokes base startup then installs device model before router initialization', () => {
@@ -62,13 +62,14 @@ test('proxy/cached data is bounded to provided catalog; partial enrichment does 
   const rows = await h.load('webapp/service/BackendClient.js').getIntegrationsWithMetadata();
   assert.equal(rows.length, 1); assert.equal(h.calls.length, 1);
 });
-test('destination monitoring request count exposes duplicate runtime collection reads', async t => {
-  const h = harness({ fetch: url => url.endsWith('/IntegrationRuntimeArtifacts') ? odata([fixtures.runtime]) : json({ d: fixtures.design }) });
+test('destination monitoring reuses runtime collection and loads dated logs', async t => {
+  const h = harness({ fetch: url => url.includes('/MessageProcessingLogs?') ? odata([]) : url.endsWith('/IntegrationRuntimeArtifacts') ? odata([fixtures.runtime]) : json({ d: fixtures.design }) });
   const { instance, models } = h.controller('Monitoring'); instance._loadData(); await flush();
   assert.equal(models.monitoring.getProperty('/items').length, 1);
   const reads = h.calls.filter(c => c.url.endsWith('/IntegrationRuntimeArtifacts')).length;
-  assert.equal(reads, 2);
-  t.diagnostic('MEASURED local HTTP work: 2 runtime collection GETs + 1 metadata GET for one cold Monitoring load; no message log query. This is characterization, not an efficiency target.');
+  assert.equal(reads, 1);
+  assert.equal(h.calls.filter(c => c.url.includes('/MessageProcessingLogs?')).length, 1);
+  t.diagnostic('Local HTTP work: 1 runtime collection GET + 1 metadata GET + 1 dated log query for one cold Monitoring load.');
 });
 test('malformed schedules are retained as raw values when opened and saved untouched', () => {
   const { instance: d, models } = harness().controller('IntegrationDetail');
@@ -77,13 +78,13 @@ test('malformed schedules are retained as raw values when opened and saved untou
     assert.equal(d._collectParams()[0].value, value); assert.equal(models.detailView.getProperty('/dirty'), false);
   }
 });
-test('review unresolved count exposes one storage read per failed log', t => {
+test('review unresolved count reads storage once per aggregation', t => {
   let reads = 0;
   const h = harness({ localStorage: { getItem: () => { reads++; return '{}'; }, setItem() {} } });
   const store = h.load('webapp/service/ReviewStore.js');
   assert.equal(store.countUnresolvedFailed(Array.from({ length: 1000 }, (_, i) => ({ messageId: String(i), status: 'FAILED' }))), 1000);
-  assert.equal(reads, 1000);
-  t.diagnostic('MEASURED local work: 1,000 failed rows cause 1,000 synchronous localStorage reads/JSON parses. A proposed optimization must reduce this count; this test records current cost.');
+  assert.equal(reads, 1);
+  t.diagnostic('1,000 failed rows now require one storage read/JSON parse.');
 });
 test('network failure clears Home/Monitoring/Detail loading indicators', async () => {
   const fail = () => Promise.reject(new Error('network unavailable'));
@@ -95,19 +96,19 @@ test('network failure clears Home/Monitoring/Detail loading indicators', async (
     assert.equal(h.notices.length, 1);
   }
 });
-defect('QA-21', 'Integration Detail never requests its displayed payload list on load', async () => {
+regression('QA-21', 'Integration Detail never requests its displayed payload list on load', async () => {
   let calls = 0;
   const h = harness({ overrides: { 'integrationpulse/service/BackendClient': { getIntegration: () => Promise.resolve({ id: 'id' }), getConfigurations: () => Promise.resolve([]), getPayloads: () => { calls++; return Promise.resolve([{ id: 'payload' }]); } } } });
   const { instance: d } = h.controller('IntegrationDetail'); d._sId = 'id'; d._load(); await flush();
   assert.equal(calls, 1);
 });
-defect('QA-06', 'late response updates detail models after onExit', async () => {
+regression('QA-06', 'late response updates detail models after onExit', async () => {
   const pending = deferred();
   const h = harness({ overrides: { 'integrationpulse/service/BackendClient': { getIntegration: () => pending.promise, getConfigurations: () => Promise.resolve([]) } } });
   const { instance: d, models } = h.controller('IntegrationDetail'); d._sId = 'id'; d._load(); d.onExit(); pending.resolve({ id: 'late' }); await flush();
   assert.equal(models.integration.getProperty('/id'), undefined);
 });
-defect('QA-08', 'repeated Save and Deploy submissions lack an internal in-flight guard', async () => {
+regression('QA-08', 'repeated Save and Deploy submissions lack an internal in-flight guard', async () => {
   const counts = [];
   for (const action of ['onSaveDraft', '_doDeploy']) {
     let calls = 0; const pending = deferred(); const hit = () => { calls++; return pending.promise; };
@@ -117,10 +118,10 @@ defect('QA-08', 'repeated Save and Deploy submissions lack an internal in-flight
   }
   assert.deepEqual(counts, [1, 1]);
 });
-defect('QA-22', 'unknown query options are lost when fields are added', () => {
+regression('QA-22', 'unknown query options are lost when fields are added', () => {
   const { instance: d } = harness().controller('IntegrationDetail');
   d._oPulseBaseQuery = d._parsePulseQuery('$select=userId&$top=25&fromDate=2026-01-01');
   d._oPulseSelectTextArea = { getValue: () => 'newField' };
   const result = d._getPulseRunOptionsFromDialog().pulseQuery;
   assert.ok(result.includes('$top=25') && result.includes('fromDate=2026-01-01'));
-}, { provisional: true });
+});

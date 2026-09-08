@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
+from urllib.parse import quote
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from uuid import uuid4
@@ -81,6 +83,8 @@ async def create_payload(
         )
 
     created_at = _now()
+    if any(ord(char) < 32 or ord(char) == 127 for char in body.fileName):
+        raise HTTPException(status_code=400, detail="File name cannot contain control characters")
     payload_bytes = body.payload.encode("utf-8")
     size_bytes = len(payload_bytes)
     # Large text payloads are stored but not rendered inline in the browser.
@@ -126,11 +130,15 @@ async def download_payload(payload_id: str):
     """Download the raw text payload."""
     item = await asyncio.to_thread(payload_storage.get_payload, payload_id)
     if item:
+        # Also sanitize older stored names, not only new receiver input.
+        name = re.sub(r'[\x00-\x1f\x7f"\\/]', '_', item["fileName"]) or "payload.txt"
+        fallback = name.encode("ascii", errors="replace").decode("ascii").replace("?", "_")
         return PlainTextResponse(
             item["payload"],
             media_type=item["contentType"],
             headers={
-                "Content-Disposition": f'attachment; filename="{item["fileName"]}"'
+                "Content-Disposition": f'attachment; filename="{fallback}"; filename*=UTF-8\'\'{quote(name, safe="")}',
+                "X-Content-Type-Options": "nosniff",
             },
         )
     raise HTTPException(status_code=404, detail="Payload not found")

@@ -24,10 +24,16 @@ sap.ui.define([], function () {
 		if (aSapDate) {
 			return new Date(Number(aSapDate[1]));
 		}
-		return new Date(sValue);
+		// SAP Edm.DateTime values without an offset are UTC.
+		if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(sText)) { sText += "Z"; }
+		return new Date(sText);
 	}
 
 	return {
+		timestamp: function (sValue) {
+			if (!sValue) { return NaN; }
+			return parseDateValue(sValue).getTime();
+		},
 
 		/**
 		 * Maps a runtime status to a sap.ui.core.ValueState for ObjectStatus colouring.

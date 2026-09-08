@@ -71,12 +71,10 @@ class PayloadRoutes(unittest.TestCase):
             with self.subTest(function=function), patch.object(store, function, side_effect=RuntimeError('database unavailable')):
                 self.assertEqual(call().status_code, 502)
 
-    @unittest.expectedFailure
     def test_QA_18_unicode_download_filename_must_not_cause_500(self):
         summary = self.post('body', fileName='员工.csv').json()
         self.assertEqual(self.client.get('/payload-api/v1/payloads/' + summary['id'] + '/download').status_code, 200)
 
-    @unittest.expectedFailure
     def test_QA_19_crlf_filename_must_not_enter_response_header(self):
         response = self.post('body', fileName='x"\r\nX-Injected: yes')
         if response.status_code >= 400: return

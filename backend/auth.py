@@ -15,6 +15,7 @@ from typing import Optional
 import httpx
 
 from config import SETTINGS
+from errors import InvalidUpstreamResponse
 
 # Simple in-process token cache: (access_token, expires_at_epoch)
 _token_cache: dict[str, object] = {"token": None, "exp": 0.0}
@@ -41,10 +42,18 @@ async def get_access_token() -> str:
             headers={"Accept": "application/json"},
         )
         resp.raise_for_status()
-        payload = resp.json()
+        try:
+            payload = resp.json()
+        except ValueError as exc:
+            raise InvalidUpstreamResponse("OAuth returned invalid JSON.") from exc
 
+    if not isinstance(payload, dict) or not isinstance(payload.get("access_token"), str) or not payload["access_token"]:
+        raise InvalidUpstreamResponse("OAuth returned an invalid access token response.")
     token = payload["access_token"]
-    expires_in = float(payload.get("expires_in", 3600))
+    try:
+        expires_in = float(payload.get("expires_in", 3600))
+    except (TypeError, ValueError) as exc:
+        raise InvalidUpstreamResponse("OAuth returned an invalid token expiry.") from exc
     _token_cache["token"] = token
     _token_cache["exp"] = now + expires_in
     return token

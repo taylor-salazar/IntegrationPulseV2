@@ -1,5 +1,7 @@
 # Release audit findings — 2026-09-08
 
+> **Current status (2026-09-08): QA-01–QA-22 are implemented after user approval and all captured assertions pass as ordinary regression tests.** See [approved fixes](approved-fixes.md) for current behavior, decisions and evidence. The register below is the **historical pre-fix audit snapshot**: its observed failures, line numbers, provisional labels and approval requests describe commit 14ec739, not the current code. Inferred architectural concerns remain subject to the limitations recorded in the implementation notes.
+
 Production approval is required for **every proposed fix below**. No production module, shipped mock fixture, routing configuration, or SAP request behavior was changed. Reproductions use local controller/model boundaries, FastAPI TestClient, and httpx.MockTransport. No SAP request was sent.
 
 Regression status: each finding has a preserved intended assertion. Normal JavaScript tests explicitly verify that the known assertion fails and emit its ID; they reject unexpected passes and unrelated runtime exceptions. Python uses `unittest.expectedFailure` (unexpected passes fail the suite). Strict commands in [README](README.md) expose the assertions as failures. QA-22 is a contract question, not an approved specification.

@@ -101,10 +101,9 @@ sap.ui.define([
 			// Metadata supplies Source/Target names; runtime status supplies health.
 			var that = this;
 			this.getView().setBusy(true);
-			Promise.all([
-				BackendClient.getIntegrationsWithMetadata(),
-				BackendClient.getMonitoring()
-			]).then(function (aResults) {
+			BackendClient.getIntegrationsWithMetadata().then(function (aIntegrations) {
+				return Promise.all([aIntegrations, BackendClient.getMonitoring(aIntegrations)]);
+			}).then(function (aResults) {
 				var aIntegrations = aResults[0] || [];
 				var aRuntimeItems = aResults[1] || [];
 				var mRuntimeById = {};

@@ -57,9 +57,10 @@ sap.ui.define([
 		countUnresolvedFailed: function (aLogs) {
 			// Product decision: only FAILED logs count as unresolved issues. Warnings
 			// and processing/retry states are not included in this counter.
+			var mResolved = readMap(RESOLVED_KEY);
 			return (aLogs || []).filter(function (oLog) {
 				return String(oLog && oLog.status || "").toUpperCase() === "FAILED" &&
-					!this.isResolved(oLog.messageId);
+					!(oLog.messageId && Object.prototype.hasOwnProperty.call(mResolved, oLog.messageId) && mResolved[oLog.messageId]);
 			}.bind(this)).length;
 		},
 

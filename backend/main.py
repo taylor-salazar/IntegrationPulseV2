@@ -16,9 +16,11 @@ from __future__ import annotations
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+import httpx
 
 from config import SETTINGS
 from routers import integrations, monitoring, payloads
+from errors import InvalidRuntimeEndpoint
 
 app = FastAPI(
     title="Integration Pulse API",
@@ -57,6 +59,22 @@ async def health():
 @app.exception_handler(RuntimeError)
 async def runtime_error_handler(_request: Request, exc: RuntimeError):
     return JSONResponse(status_code=502, content={"detail": str(exc)})
+
+
+@app.exception_handler(InvalidRuntimeEndpoint)
+async def invalid_runtime_endpoint(_request: Request, exc: InvalidRuntimeEndpoint):
+    return JSONResponse(status_code=400, content={"detail": str(exc)})
+
+
+@app.exception_handler(httpx.HTTPError)
+async def upstream_error_handler(_request: Request, exc: httpx.HTTPError):
+    if isinstance(exc, httpx.TimeoutException):
+        return JSONResponse(status_code=504, content={"detail": "Integration Suite request timed out."})
+    if isinstance(exc, httpx.HTTPStatusError):
+        status = exc.response.status_code
+        return JSONResponse(status_code=503 if status in (429, 503) else 502,
+                            content={"detail": f"Integration Suite request failed (HTTP {status})."})
+    return JSONResponse(status_code=502, content={"detail": "Unable to connect to Integration Suite."})
 
 
 app.include_router(integrations.router)
