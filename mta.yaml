@@ -69,7 +69,6 @@ modules:
       - name: pulse-destination
         parameters:
           content-target: true
-      - name: pulse-api-url
       - name: pulse-html5-host
         parameters:
           service-key:
@@ -83,13 +82,6 @@ modules:
         instance:
           existing_destinations_policy: update
           destinations:
-            - Name: pulse-api
-              Type: HTTP
-              ProxyType: Internet
-              URL: ~{pulse-api-url/url}
-              Authentication: NoAuthentication
-              HTML5.ForwardAuthToken: true
-              HTML5.DynamicDestination: true
             - Name: pulse-html5-host
               ServiceInstanceName: pulse-html5-host
               ServiceKeyName: pulse-html5-key
@@ -116,11 +108,24 @@ resources:
       path: ./xs-security-ingest.json
   - name: pulse-destination
     type: org.cloudfoundry.managed-service
+    requires:
+      - name: pulse-api-url
     parameters:
       service: destination
       service-plan: lite
       config:
         HTML5Runtime_enabled: true
+        init_data:
+          instance:
+            existing_destinations_policy: update
+            destinations:
+              - Name: pulse-api
+                Type: HTTP
+                ProxyType: Internet
+                URL: ~{pulse-api-url/url}
+                Authentication: NoAuthentication
+                HTML5.ForwardAuthToken: true
+                HTML5.DynamicDestination: true
   - name: pulse-html5-host
     type: org.cloudfoundry.managed-service
     parameters:
