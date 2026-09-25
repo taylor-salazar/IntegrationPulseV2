@@ -326,7 +326,7 @@ sap.ui.define([
 			(this.getModel("parameters").getProperty("/groups") || []).forEach(function (oGroup) {
 				oGroup.params.forEach(function (oParam) {
                     if (oParam.readOnly || oParam.redacted || oParam.value === oParam.pristineValue) { return; }
-                    if (oParam.value == null || /^(?:\*{3,}|•{3,}|\[redacted\]|<redacted>|\[masked\])$/i.test(oParam.value)) {
+                    if (oParam.value == null || /^(?:\*{3,}|â€¢{3,}|\[redacted\]|<redacted>|\[masked\])$/i.test(oParam.value)) {
                         throw new Error("Enter an explicit replacement value; masked values cannot be saved.");
                     }
 					aOut.push({
