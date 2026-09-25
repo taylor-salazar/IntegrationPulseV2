@@ -46,7 +46,7 @@ modules:
       builder: custom
       commands:
         - npm ci
-        - npm run build
+        - npm run build:cf
       build-result: dist
       supported-platforms: []
   - name: pulse-ui-content
