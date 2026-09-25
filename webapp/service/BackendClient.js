@@ -11,6 +11,7 @@ sap.ui.define([
 
 	// Resolve mock mode: ?mock=false overrides config.useMock at runtime.
 	function resolveUseMock() {
+        if (config.production) { return false; }
 		var sParam = new URLSearchParams(window.location.search).get("mock");
 		if (sParam === "false") {
 			return false;
@@ -22,6 +23,7 @@ sap.ui.define([
 	}
 
 	function resolveLiveMode() {
+        if (config.production) { return "proxy"; }
 		var sParam = new URLSearchParams(window.location.search).get("api");
 		if (sParam === "proxy" || sParam === "destination") {
 			return sParam;
@@ -36,6 +38,7 @@ sap.ui.define([
 	var mDesignTimeMetadataCache = {};
 
 	function loadDesignTimeMetadataCache() {
+        if (config.production) { return; }
 		try {
 			mDesignTimeMetadataCache = JSON.parse(window.localStorage.getItem(DESIGN_TIME_CACHE_KEY) || "{}") || {};
 		} catch (e) {
@@ -59,11 +62,58 @@ sap.ui.define([
 		});
 	}
 
+	var sessionPromise, capabilities = {}, csrfToken, csrfPromise;
+    function canAdminister() { return !config.production || capabilities.administer === true; }
+    function canReadPayloads() { return !config.production || capabilities.readPayloads === true; }
+    function loadSession() {
+        if (!config.production) { return Promise.resolve({capabilities: {viewIntegrations:true, viewMonitoring:true, readConfigurations:true, administer:true, readPayloads:true}}); }
+        if (!sessionPromise) {
+            sessionPromise = getJSON(config.backendBaseUrl + "/api/session").then(function (data) {
+                capabilities = data.capabilities || {};
+                return {capabilities: capabilities};
+            }).catch(function (error) { sessionPromise = null; capabilities = {}; throw error; });
+        }
+        return sessionPromise;
+    }
+    function getCsrf(force) {
+        if (force) { csrfToken = null; csrfPromise = null; }
+        if (csrfToken) { return Promise.resolve(csrfToken); }
+        if (!csrfPromise) {
+            csrfPromise = fetch(config.backendBaseUrl + "/api/session", {
+                credentials: "include", cache: "no-store", headers: {"X-CSRF-Token":"Fetch"}
+            }).then(function (response) {
+                var token = response.headers.get("x-csrf-token");
+                if (!response.ok || !token || /^(required|fetch)$/i.test(token)) { throw new Error("Unable to obtain application CSRF token."); }
+                csrfToken = token; return token;
+            }).finally(function () { csrfPromise = null; });
+        }
+        return csrfPromise;
+    }
+    function applicationFetch(url, options) {
+        if (!config.production) { return fetch(url, options); }
+        if (new URL(url, window.location.href).origin !== new URL(window.location.href).origin) {
+            return Promise.reject(new Error("Application requests must remain on the application origin."));
+        }
+        options = Object.assign({credentials:"include",cache:"no-store"}, options);
+        var mutation = ["GET","HEAD"].indexOf(options.method || "GET") < 0;
+        if (!mutation) { return fetch(url, options); }
+        if (!canAdminister()) { return Promise.reject(new Error("Administrator permission required.")); }
+        function send(token) { return fetch(url, Object.assign({}, options, {headers:Object.assign({}, options.headers, {"X-CSRF-Token":token})})); }
+        return getCsrf(false).then(send).then(function (response) {
+            // Retry only the router's explicit pre-dispatch CSRF rejection.
+            // Never retry timeouts, network failures or ambiguous SAP outcomes.
+            if (response.status === 403 && /^required$/i.test(response.headers.get("x-csrf-token") || "")) {
+                return getCsrf(true).then(send);
+            }
+            return response;
+        });
+    }
+
 	function getJSON(sUrl) {
 		// Thin GET wrapper used by every data-loading method. It converts HTTP
 		// failures into thrown Error objects so controllers can show one message
 		// path regardless of the backing API.
-		return fetch(sUrl, {
+		return applicationFetch(sUrl, {
 			headers: { "Accept": "application/json" },
 			credentials: "include"
 		}).then(function (res) {
@@ -81,7 +131,7 @@ sap.ui.define([
 	}
 
 	function sendJSON(sUrl, sMethod, oBody) {
-		return fetch(sUrl, {
+		return applicationFetch(sUrl, {
 			method: sMethod,
 			headers: {
 				"Accept": "application/json",
@@ -111,7 +161,7 @@ sap.ui.define([
 	}
 
 	function sendText(sUrl, sMethod, sBody, mHeaders) {
-		return fetch(sUrl, {
+		return applicationFetch(sUrl, {
 			method: sMethod,
 			headers: mHeaders || {},
 			credentials: "include",
@@ -161,8 +211,9 @@ sap.ui.define([
 			id: oRaw.Id || oRaw.id || "",
 			name: oRaw.Name || oRaw.name || oRaw.Id || oRaw.id || "",
 			designTimeId: oRaw.IntegrationDesigntimeArtifactId || oRaw.DesigntimeArtifactId ||
-				oRaw.DesignTimeArtifactId || oRaw.ArtifactId || oRaw.Name || oRaw.Id || oRaw.id || "",
+				oRaw.DesignTimeArtifactId || oRaw.ArtifactId || oRaw.designTimeId || "",
 			designTimeVersion: oRaw.IntegrationDesigntimeArtifactVersion || oRaw.designTimeVersion || "",
+            identity: oRaw.identity || null,
 			isRuntimeArtifact: oRaw.isRuntimeArtifact !== false,
 			sender: oRaw.Sender || oRaw.sender || oRaw.SourceSystem || oRaw.sourceSystem || oRaw.Source || oRaw.source || "",
 			receiver: oRaw.Receiver || oRaw.receiver || oRaw.TargetSystem || oRaw.targetSystem || oRaw.Target || oRaw.target || "",
@@ -306,9 +357,9 @@ sap.ui.define([
 
 	function getDesignTimeVersionCandidates(oIntegration) {
 		return uniqueValues([
-			oIntegration && oIntegration.designTimeVersion,
 			"Active",
 			"active",
+            oIntegration && oIntegration.designTimeVersion,
 			oIntegration && oIntegration.version
 		]);
 	}
@@ -616,44 +667,69 @@ sap.ui.define([
 		});
 	}
 
-	function resolveDestinationDesignTimeIdentity(sId) {
-		return getDestinationIntegration(sId).then(function (oIntegration) {
-			var oItem = oIntegration || {};
-			var aIds = getDesignTimeIdCandidates(sId, oItem);
-			var aVersions = getDesignTimeVersionCandidates(oItem);
-			return tryResolveDesignTimeIdentity(aIds, aVersions, 0, 0).then(function (oResolved) {
-				if (oResolved) {
-					return oResolved;
-				}
-				return getFallbackConfigurationCandidates(sId, oItem).then(function (oCandidates) {
-					return tryResolveDesignTimeIdentity(oCandidates.ids, oCandidates.versions, 0, 0);
-				});
-			}).then(function (oResolved) {
-				if (!oResolved) {
-					throw new Error("Integration design time artifact not found");
-				}
-				return oResolved;
-			});
-		});
-	}
+    function notFound(error) {
+        if (error.status !== 404) { throw error; }
+        return null;
+    }
+    function resolveDestinationDesignTimeIdentity(sId, supplied) {
+        var getItem = supplied ? Promise.resolve(supplied) : getDestinationIntegrations().then(function (items) {
+            return items.filter(function (item) { return item.id === sId; })[0];
+        });
+        return getItem.then(function (item) {
+            item = item || {};
+            var ids = getDesignTimeIdCandidates(sId, item), versions = getDesignTimeVersionCandidates(item);
+            function lookup(candidates, versionCandidates) {
+                var found = Object.create(null);
+                function one(id, index) {
+                    if (index >= versionCandidates.length) { return Promise.resolve(); }
+                    return getDesignTimeEntityForCandidate(id, versionCandidates[index]).then(function (metadata) {
+                        if (!metadata.designTimeVersion || /^active$/i.test(metadata.designTimeVersion)) { throw new Error("SAP did not return a concrete artifact identity"); }
+                        found[metadata.id] = {id:metadata.id, version:metadata.designTimeVersion, packageId:metadata.packageName || item.packageName || ""};
+                    }).catch(function (error) { notFound(error); return one(id, index + 1); });
+                }
+                return candidates.reduce(function (promise, id) { return promise.then(function () { return one(id, 0); }); }, Promise.resolve()).then(function () {
+                    var values = Object.keys(found).map(function (id) { return found[id]; });
+                    if (values.length > 1) { throw new Error("Ambiguous design-time artifact identity"); }
+                    return values[0] || null;
+                });
+            }
+            function query(filter) {
+                return getJSON(getDestinationUrl("/IntegrationDesigntimeArtifacts?$filter=" + encodeURIComponent(filter))).then(function (data) {
+                    return odataResults(data).map(mapDesignTimeMetadata);
+                }).catch(function (error) { notFound(error); return []; });
+            }
+            return (item.designTimeId ? lookup([item.designTimeId],versions) : Promise.resolve(null)).then(function (result) {
+                return result || lookup(ids,versions);
+            }).then(function (result) {
+                if (result) { return result; }
+                return ids.reduce(function (promise,id) {
+                    return promise.then(function (rows) { return query("Id eq " + odataFilterLiteral(id) + " or Name eq " + odataFilterLiteral(id)).then(function (next) { return rows.concat(next); }); });
+                },Promise.resolve([])).then(function (rows) {
+                    if (rows.length || !item.packageName) { return rows; }
+                    return query("PackageId eq " + odataFilterLiteral(item.packageName)).then(function (packageRows) {
+                        var normalized=ids.map(normalizeMatchValue);
+                        var exact=packageRows.filter(function (row) { return [row.id,row.name].some(function (value) { return normalized.indexOf(normalizeMatchValue(value)) >= 0; }); });
+                        return exact.length ? exact : packageRows;
+                    });
+                }).then(function (rows) {
+                    var unique=Object.create(null); rows.forEach(function (row) { if(row.id) { unique[row.id]=row; } });
+                    var keys=Object.keys(unique);
+                    if(keys.length>1) { throw new Error("Ambiguous design-time artifact identity"); }
+                    if(!keys.length) { throw new Error("Integration design time artifact not found. Tried IDs: " + ids.join(", ") + "; versions: " + versions.join(", ")); }
+                    return lookup(keys, uniqueValues(versions.concat([unique[keys[0]].designTimeVersion])));
+                });
+            }).then(function (result) {
+                if (!result) { throw new Error("Integration design time artifact not found"); }
+                return result;
+            });
+        });
+    }
 
-	function getDestinationConfigurations(sId, oIntegration) {
-		var fnWithIntegration = function (oResolvedIntegration) {
-			var oItem = oResolvedIntegration || oIntegration || {};
-			return tryGetConfigurationsForVersions(
-				getDesignTimeIdCandidates(sId, oItem),
-				getDesignTimeVersionCandidates(oItem)
-			).catch(function () {
-				return getFallbackConfigurationCandidates(sId, oItem).then(function (oCandidates) {
-					return tryGetConfigurationsForVersions(oCandidates.ids, oCandidates.versions);
-				});
-			});
-		};
-		if (oIntegration) {
-			return fnWithIntegration(oIntegration);
-		}
-		return getDestinationIntegration(sId).then(fnWithIntegration);
-	}
+    function getDestinationConfigurations(sId, oIntegration) {
+        return resolveDestinationDesignTimeIdentity(sId, oIntegration).then(function (identity) {
+            return getConfigurationsForCandidate(identity.id, identity.version);
+        });
+    }
 
 	function updateDestinationConfigurations(sId, aConfigurations) {
 		if (!aConfigurations || !aConfigurations.length) {
@@ -859,7 +935,7 @@ sap.ui.define([
 		 * Destination live: PUT /api/v1/IntegrationDesigntimeArtifacts(...)/$links/Configurations(...)
 		 * Proxy live: PUT {backend}/api/integrations/{id}/configurations
 		 */
-		updateConfigurations: function (sId, aConfigurations) {
+		updateConfigurations: function (sId, aConfigurations, oIdentity) {
 			if (USE_MOCK) {
 				return delay(300).then(function () {
 					return { id: sId, updated: aConfigurations.length };
@@ -871,7 +947,7 @@ sap.ui.define([
 			return sendJSON(
 				getProxyItemUrl("integrations", sId, "/configurations"),
 				"PUT",
-				{ configurations: aConfigurations }
+				{ configurations: aConfigurations, identity: oIdentity }
 			);
 		},
 
@@ -880,7 +956,7 @@ sap.ui.define([
 		 * Destination live: POST /api/v1/DeployIntegrationDesigntimeArtifact
 		 * Proxy live: POST {backend}/api/integrations/{id}/deploy
 		 */
-		deployIntegration: function (sId, aConfigurations) {
+		deployIntegration: function (sId, aConfigurations, oIdentity) {
 			if (USE_MOCK) {
 				Log.info("[mock] deploy " + sId, JSON.stringify(aConfigurations));
 				return delay(1200).then(function () {
@@ -893,7 +969,7 @@ sap.ui.define([
 			return sendJSON(
 				getProxyItemUrl("integrations", sId, "/deploy"),
 				"POST",
-				{ configurations: aConfigurations }
+				{ configurations: aConfigurations, identity: oIdentity }
 			);
 		},
 
@@ -976,6 +1052,7 @@ sap.ui.define([
 		},
 
 		getPayloads: function (sIntegrationId) {
+            if (!canReadPayloads()) { return Promise.resolve([]); }
 			if (USE_MOCK) {
 				return getJSON(MOCK_ROOT + "/payloads.json").then(function (d) {
 					return delay(200).then(function () {
@@ -991,6 +1068,7 @@ sap.ui.define([
 		},
 
 		getPayload: function (sPayloadId) {
+            if (!canReadPayloads()) { return Promise.reject(new Error("Administrator permission required.")); }
 			if (USE_MOCK) {
 				return getJSON(MOCK_ROOT + "/payloads.json").then(function (d) {
 					var aGroups = Object.keys(d).map(function (sKey) { return d[sKey]; });
@@ -1003,6 +1081,28 @@ sap.ui.define([
 			}
 			return getJSON(getPayloadUrl("/payloads/" + encodeURIComponent(sPayloadId))).then(mapPayload);
 		},
+
+        getSession: loadSession,
+        canAdminister: canAdminister,
+        canReadPayloads: canReadPayloads,
+        downloadPayload: function (id) {
+            if (!canReadPayloads()) { return Promise.reject(new Error("Administrator permission required.")); }
+            return applicationFetch(getPayloadUrl("/payloads/" + encodeURIComponent(id) + "/download"), {method:"GET"}).then(function (response) {
+                if (!response.ok) { throw new Error("Payload download failed (HTTP " + response.status + ")."); }
+                var disposition = response.headers.get("content-disposition") || "";
+                var encoded = /filename\*=UTF-8''([^;]+)/i.exec(disposition);
+                var basic = /filename="([^"]+)"/i.exec(disposition);
+                var name = basic ? basic[1] : "payload.txt";
+                if (encoded) { try { name = decodeURIComponent(encoded[1]); } catch (ignore) {} }
+                name = name.replace(/[\x00-\x1f\x7f\\/]/g, "_");
+                return response.blob().then(function (blob) {
+                    var url = URL.createObjectURL(blob);
+                    var anchor = document.createElement("a"); anchor.href=url; anchor.download=name;
+                    document.body.appendChild(anchor); anchor.click(); anchor.remove();
+                    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+                });
+            });
+        },
 
 		getPayloadDownloadUrl: function (sPayloadId) {
 			return getPayloadUrl("/payloads/" + encodeURIComponent(sPayloadId) + "/download");

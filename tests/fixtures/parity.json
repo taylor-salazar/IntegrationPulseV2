@@ -1,0 +1,7 @@
+{
+  "runtime": {"Id":"runtime-id","Name":"Display Name","IntegrationDesigntimeArtifactId":"design-id","Version":"1.0","Status":"STARTED","Endpoint":"/http/run"},
+  "design": {"Id":"design-id","Version":"2.0","PackageId":"package","Sender":"SuccessFactors","Receiver":"SAP_HCM"},
+  "expected": {"id":"runtime-id","name":"Display Name","designTimeId":"design-id","designTimeVersion":"2.0","packageName":"package","sender":"SuccessFactors","receiver":"SAP_HCM","endpoint":"/http/run"},
+  "logs": [{"MessageGuid":"m","Status":"FAILED","Duration":1250,"ErrorMessage":"Synthetic failure","LogEnd":"2026-09-07T12:00:00"},{"MessageGuid":"discarded","Status":"DISCARDED"}],
+  "expectedLog": {"messageId":"m","status":"FAILED","durationMs":1250,"errorMessage":"Synthetic failure","logEnd":"2026-09-07T12:00:00","sender":""}
+}

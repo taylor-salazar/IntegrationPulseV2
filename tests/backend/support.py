@@ -10,6 +10,7 @@ os.environ['PYTHON_DOTENV_DISABLED'] = '1'
 sys.path.insert(0, str(ROOT / 'backend'))
 import config
 config.SETTINGS = config.Settings(
+    sap_transport='legacy-development',
     use_mock=True, is_api_base='https://sap.test/api/v1',
     immediate_run_base='', oauth_token_url='https://oauth.test/token',
     client_id='qa-client', client_secret='qa-dummy-secret',

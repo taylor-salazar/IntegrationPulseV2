@@ -30,8 +30,10 @@ import httpx
 
 from config import SETTINGS
 from auth import get_access_token
+import destination_client
 from errors import InvalidRuntimeEndpoint, InvalidUpstreamResponse
 from models import (
+    ArtifactIdentity,
     Configuration,
     ConfigurationUpdate,
     DeployResponse,
@@ -56,13 +58,32 @@ def _odata_literal(value: str) -> str:
     return f"'{quote(escaped, safe='')}'"
 
 
+async def _management_connection():
+    if SETTINGS.sap_transport == "destination":
+        destination = await destination_client.resolve("management")
+        return destination.url, destination.authorization
+    if SETTINGS.sap_transport != "legacy-development" or os.getenv("VCAP_APPLICATION"):
+        raise InvalidUpstreamResponse("Legacy SAP transport is development-only")
+    return SETTINGS.is_api_base, "Bearer " + await get_access_token()
+
+
 async def _is_get(path: str) -> dict:
     """Authenticated GET against the Integration Suite OData API (JSON)."""
-    token = await get_access_token()
-    async with httpx.AsyncClient(timeout=60) as client:
+    try:
+        api_base, authorization = await _management_connection()
+    except httpx.HTTPStatusError as error:
+        # A token/destination lookup 404 is not an artifact lookup 404.
+        # Keep it out of identity fallback, without exposing response secrets.
+        from fastapi import HTTPException
+        status = error.response.status_code
+        raise HTTPException(
+            503 if status in (429, 503) else 502,
+            f"SAP management credential resolution failed (HTTP {status})"
+        ) from None
+    async with httpx.AsyncClient(timeout=60, follow_redirects=False) as client:
         resp = await client.get(
-            SETTINGS.is_api_base + path,
-            headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+            api_base + path,
+            headers={"Authorization": authorization, "Accept": "application/json"},
         )
         resp.raise_for_status()
         try:
@@ -109,7 +130,9 @@ async def _design_time_matches_for_candidate(candidate: str) -> List[dict]:
     path = f"/IntegrationDesigntimeArtifacts?$filter={quote(filter_expression, safe='')}"
     try:
         data = await _is_get(path)
-    except httpx.HTTPStatusError:
+    except httpx.HTTPStatusError as error:
+        if error.response.status_code != 404:
+            raise
         return []
     return _odata_results(data)
 
@@ -121,97 +144,71 @@ async def _design_time_matches_for_package(package_id: str) -> List[dict]:
     path = f"/IntegrationDesigntimeArtifacts?$filter={quote(filter_expression, safe='')}"
     try:
         data = await _is_get(path)
-    except httpx.HTTPStatusError:
+    except httpx.HTTPStatusError as error:
+        if error.response.status_code != 404:
+            raise
         return []
     return _odata_results(data)
 
 
-async def _matched_design_time_items(integration_id: str, item: Integration | None) -> List[dict]:
-    candidates = [
-        item.designTimeId if item else "",
-        integration_id,
-        item.name if item else "",
-    ]
-    normalized_candidates = {_normalize_match_value(value) for value in candidates if value}
+async def resolve_identity(integration_id: str, item: Integration | None = None) -> ArtifactIdentity:
+    item = item or await get_integration(integration_id)
+    if item is None:
+        raise RuntimeError("Integration design time artifact not found")
+    explicit = item.designTimeId
+    ids = _unique_values([explicit, integration_id, item.name])
+    versions = _unique_values(["Active", "active", item.designTimeVersion, item.version])
+    async def lookup(candidate_ids, candidate_versions):
+        found = {}
+        for candidate in candidate_ids:
+            for version in candidate_versions:
+                try:
+                    data = await _is_get(f"/IntegrationDesigntimeArtifacts(Id={_odata_literal(candidate)},Version={_odata_literal(version)})")
+                except httpx.HTTPStatusError as error:
+                    if error.response.status_code != 404:
+                        raise
+                    continue
+                raw = data.get("d", data)
+                if not isinstance(raw, dict) or not raw.get("Id") or not raw.get("Version") or str(raw["Version"]).lower() == "active":
+                    raise InvalidUpstreamResponse("SAP did not return a concrete artifact identity")
+                identity = ArtifactIdentity(runtimeId=integration_id, designTimeId=raw["Id"],
+                    designTimeVersion=raw["Version"], packageId=raw.get("PackageId") or item.packageName)
+                found[identity.designTimeId] = identity
+                break
+        if len(found) > 1:
+            raise InvalidUpstreamResponse("Ambiguous design-time artifact identity")
+        return next(iter(found.values()), None)
+    if explicit:
+        result = await lookup([explicit], versions)
+        if result:
+            return result
+    result = await lookup(ids, versions)
+    if result:
+        return result
     matches = []
-    for candidate in _unique_values(candidates):
-        for raw in await _design_time_matches_for_candidate(candidate):
-            raw_values = {
-                _normalize_match_value(raw.get("Id", "")),
-                _normalize_match_value(raw.get("Name", "")),
-            }
-            if normalized_candidates.intersection(raw_values):
-                matches.append(raw)
-    if matches:
-        return matches
-    package_items = await _design_time_matches_for_package(item.packageName if item else "")
-    for raw in package_items:
-        raw_values = {
-            _normalize_match_value(raw.get("Id", "")),
-            _normalize_match_value(raw.get("Name", "")),
-        }
-        if any(
-            raw_value
-            and candidate
-            and (raw_value in candidate or candidate in raw_value)
-            for raw_value in raw_values
-            for candidate in normalized_candidates
-        ):
-            matches.append(raw)
-    if not matches and len(package_items) == 1:
-        matches = package_items
-    return matches
-
-
-async def _design_time_candidates(integration_id: str) -> tuple[List[str], List[str]]:
-    item = await get_integration(integration_id)
-    try:
-        matches = await _matched_design_time_items(integration_id, item)
-    except httpx.HTTPStatusError:
-        matches = []
-    ids = _unique_values(
-        [
-            item.designTimeId if item else "",
-            integration_id,
-            item.name if item else "",
-        ]
-        + [match.get("Id", "") for match in matches]
-    )
-    versions = _unique_values(
-        [
-            "Active",
-            "active",
-            item.designTimeVersion if item else "",
-            item.version if item else "",
-        ]
-        + [match.get("Version", "") for match in matches]
-    )
-    return ids, versions
-
-
-async def _resolve_design_time_identity(integration_id: str) -> tuple[str, str]:
-    ids, versions = await _design_time_candidates(integration_id)
-    for candidate_id in ids:
-        for version in versions:
-            path = (
-                f"/IntegrationDesigntimeArtifacts(Id={_odata_literal(candidate_id)},"
-                f"Version={_odata_literal(version)})"
-            )
-            try:
-                data = await _is_get(path)
-                entity = data.get("d", data)
-                if not isinstance(entity, dict) or not isinstance(entity.get("Id"), str) or not entity["Id"]:
-                    raise InvalidUpstreamResponse("Integration Suite returned an invalid artifact identity.")
-                return candidate_id, version
-            except httpx.HTTPStatusError:
-                continue
+    for candidate in ids:
+        matches.extend(await _design_time_matches_for_candidate(candidate))
+    unique = {row.get("Id"): row for row in matches if row.get("Id")}
+    if not unique:
+        package = await _design_time_matches_for_package(item.packageName)
+        normalized = {_normalize_match_value(v) for v in ids}
+        exact = [r for r in package if normalized.intersection({_normalize_match_value(r.get("Id")), _normalize_match_value(r.get("Name"))})]
+        candidates = exact or package
+        unique = {r.get("Id"):r for r in candidates if r.get("Id")}
+    if len(unique) > 1:
+        raise InvalidUpstreamResponse("Ambiguous design-time artifact identity")
+    if unique:
+        raw = next(iter(unique.values()))
+        result = await lookup([raw['Id']], _unique_values(versions + [raw.get('Version', '')]))
+        if result:
+            return result
     raise RuntimeError("Integration design time artifact not found")
 
 
 # --------------------------------------------------------------------------- #
 # Integrations
 # --------------------------------------------------------------------------- #
-async def list_integrations() -> List[Integration]:
+async def list_integrations(enrich: bool = False) -> List[Integration]:
     if SETTINGS.use_mock:
         return [Integration(**{**o, "sender": o.get("sender") or "", "receiver": o.get("receiver") or ""})
                 for o in _load_mock("integrations.json")["value"]]
@@ -219,7 +216,7 @@ async def list_integrations() -> List[Integration]:
     # >>> PLACEHOLDER: GET /IntegrationRuntimeArtifacts <<<
     data = await _is_get("/IntegrationRuntimeArtifacts")
     results = _odata_results(data)
-    return [
+    items = [
         Integration(
             id=r.get("Id", ""),
             name=r.get("Name", r.get("Id", "")),
@@ -244,13 +241,38 @@ async def list_integrations() -> List[Integration]:
         )
         for r in results
     ]
+    if enrich:
+        semaphore = asyncio.Semaphore(6)
+        async def enrich_one(item):
+            async with semaphore:
+                return await enrich_integration(item)
+        return await asyncio.gather(*(enrich_one(item) for item in items))
+    return items
 
 
-async def get_integration(integration_id: str) -> Integration | None:
+async def enrich_integration(item: Integration) -> Integration:
+    try:
+        identity = await resolve_identity(item.id, item)
+    except RuntimeError as error:
+        if str(error) == "Integration design time artifact not found":
+            return item
+        raise
+    raw = (await _is_get(f"/IntegrationDesigntimeArtifacts(Id={_odata_literal(identity.designTimeId)},Version={_odata_literal(identity.designTimeVersion)})"))
+    raw = raw.get('d', raw)
+    return item.model_copy(update={
+        'designTimeId': identity.designTimeId, 'designTimeVersion': identity.designTimeVersion,
+        'packageName': item.packageName or identity.packageId,
+        'sender': raw.get('Sender') or item.sender, 'receiver': raw.get('Receiver') or item.receiver,
+        'identity': identity.model_dump(),
+    })
+
+
+
+async def get_integration(integration_id: str, enrich: bool = False) -> Integration | None:
     items = await list_integrations()
     for item in items:
         if item.id == integration_id:
-            return item
+            return await enrich_integration(item) if enrich and not SETTINGS.use_mock else item
     return None
 
 
@@ -259,24 +281,8 @@ async def get_configurations(integration_id: str) -> List[Configuration]:
         raw = _load_mock("configurations.json").get(integration_id, [])
         return [Configuration(**o) for o in raw]
 
-    ids, versions = await _design_time_candidates(integration_id)
-    data = None
-    for candidate_id in ids:
-        for version in versions:
-            path = (
-                f"/IntegrationDesigntimeArtifacts(Id={_odata_literal(candidate_id)},"
-                f"Version={_odata_literal(version)})"
-                f"/Configurations"
-            )
-            try:
-                data = await _is_get(path)
-                break
-            except httpx.HTTPStatusError:
-                continue
-        if data is not None:
-            break
-    if data is None:
-        raise RuntimeError("Integration design time artifact not found")
+    identity = await resolve_identity(integration_id)
+    data = await _is_get(f"/IntegrationDesigntimeArtifacts(Id={_odata_literal(identity.designTimeId)},Version={_odata_literal(identity.designTimeVersion)})/Configurations")
     results = _odata_results(data)
     return [
         Configuration(
@@ -290,7 +296,7 @@ async def get_configurations(integration_id: str) -> List[Configuration]:
 
 
 async def update_configurations(
-    integration_id: str, updates: List[ConfigurationUpdate]
+    integration_id: str, updates: List[ConfigurationUpdate], identity: ArtifactIdentity | None = None
 ) -> dict:
     if SETTINGS.use_mock:
         return {"id": integration_id, "updated": len(updates)}
@@ -298,7 +304,11 @@ async def update_configurations(
     if not updates:
         return {"id": integration_id, "updated": 0}
 
-    design_time_id, version = await _resolve_design_time_identity(integration_id)
+    resolved = await resolve_identity(integration_id)
+    if identity and identity != resolved:
+        from fastapi import HTTPException
+        raise HTTPException(409, "Artifact identity changed; reload before saving")
+    design_time_id, version = resolved.designTimeId, resolved.designTimeVersion
     batch_boundary = "batch_integration_pulse"
     changeset_boundary = "all_parameters"
     lines = [
@@ -339,12 +349,12 @@ async def update_configurations(
         ]
     )
 
-    token = await get_access_token()
-    async with httpx.AsyncClient(timeout=60) as client:
+    api_base, authorization = await _management_connection()
+    async with httpx.AsyncClient(timeout=60, follow_redirects=False) as client:
         resp = await client.post(
-            SETTINGS.is_api_base + "/$batch",
+            api_base + "/$batch",
             headers={
-                "Authorization": f"Bearer {token}",
+                "Authorization": authorization,
                 "Accept": "application/json",
                 "Content-Type": f"multipart/mixed; boundary={batch_boundary}",
             },
@@ -361,10 +371,16 @@ async def update_configurations(
 
 
 async def deploy_integration(
-    integration_id: str, updates: List[ConfigurationUpdate]
+    integration_id: str, updates: List[ConfigurationUpdate], identity: ArtifactIdentity | None = None
 ) -> DeployResponse:
     # Persist edits first, then trigger deployment.
-    await update_configurations(integration_id, updates)
+    if not SETTINGS.use_mock:
+        resolved = await resolve_identity(integration_id)
+        if identity and identity != resolved:
+            from fastapi import HTTPException
+            raise HTTPException(409, "Artifact identity changed; reload before deployment")
+        identity = resolved
+    await update_configurations(integration_id, updates, identity)
 
     if SETTINGS.use_mock:
         return DeployResponse(
@@ -372,16 +388,16 @@ async def deploy_integration(
         )
 
     # >>> PLACEHOLDER: POST /DeployIntegrationDesigntimeArtifact for the selected artifact only <<<
-    design_time_id, version = await _resolve_design_time_identity(integration_id)
-    token = await get_access_token()
+    design_time_id, version = identity.designTimeId, identity.designTimeVersion
+    api_base, authorization = await _management_connection()
     path = (
         f"/DeployIntegrationDesigntimeArtifact?Id={_odata_literal(design_time_id)}"
         f"&Version={_odata_literal(version)}"
     )
-    async with httpx.AsyncClient(timeout=120) as client:
+    async with httpx.AsyncClient(timeout=120, follow_redirects=False) as client:
         resp = await client.post(
-            SETTINGS.is_api_base + path,
-            headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+            api_base + path,
+            headers={"Authorization": authorization, "Accept": "application/json"},
         )
         resp.raise_for_status()
         task_id = resp.text.strip() or None
@@ -395,13 +411,13 @@ def _tenant_runtime_base() -> str:
     return re.sub(r"/api/v1/?$", "", SETTINGS.is_api_base).rstrip("/")
 
 
-def _join_runtime_endpoint(endpoint: str) -> str:
+def _join_runtime_endpoint(endpoint: str, runtime_base: str | None = None) -> str:
     """Only send tenant credentials to the configured HTTPS runtime origin."""
     raw = str(endpoint or "").strip()
     def origin(parts):
         return (parts.scheme.lower(), (parts.hostname or "").lower(), parts.port or 443)
     try:
-        base = urlsplit(_tenant_runtime_base())
+        base = urlsplit(runtime_base or _tenant_runtime_base())
         target = urlsplit(raw)
         if base.scheme.lower() != "https" or not base.hostname or base.username or base.password:
             raise ValueError("Invalid runtime base")
@@ -444,19 +460,47 @@ async def trigger_immediate_run(
             message="Mock immediate run started.",
         )
 
-    resolved_endpoint = endpoint
-    if not resolved_endpoint:
-        item = await get_integration(integration_id)
-        resolved_endpoint = item.endpoint if item else ""
-    if not resolved_endpoint:
-        raise RuntimeError("No HTTPS sender endpoint is available for this integration.")
-
-    runtime_url = _join_runtime_endpoint(resolved_endpoint)
+    if SETTINGS.sap_transport == "destination":
+        destination = await destination_client.resolve("runtime")
+        if urlsplit(destination.url).path not in {"", "/"}:
+            raise InvalidRuntimeEndpoint("Runtime destination must identify the HTTPS runtime origin")
+        try:
+            endpoints = json.loads(os.getenv("PULSE_RUNTIME_ENDPOINTS", "{}"))
+            if not isinstance(endpoints, dict):
+                raise ValueError()
+            approved = endpoints.get(integration_id)
+        except ValueError:
+            raise InvalidRuntimeEndpoint("Invalid server endpoint configuration") from None
+        if not approved:
+            configurations = await get_configurations(integration_id)
+            approved = next((c.value for c in configurations if c.key == "pulse.immediateRunEndpoint" and c.value), None)
+        if not approved:
+            item = await get_integration(integration_id)
+            approved = item.endpoint if item else ""
+        if not approved:
+            raise InvalidRuntimeEndpoint("Integration has no approved runtime endpoint")
+        runtime_url = _join_runtime_endpoint(approved, destination.url)
+        if endpoint and _join_runtime_endpoint(endpoint, destination.url) != runtime_url:
+            raise InvalidRuntimeEndpoint("Runtime endpoint does not belong to the selected integration")
+        authorization = destination.authorization
+    else:
+        if SETTINGS.sap_transport != "legacy-development" or os.getenv("VCAP_APPLICATION"):
+            raise InvalidRuntimeEndpoint("Legacy runtime transport is development-only")
+        resolved_endpoint = endpoint
+        if not resolved_endpoint:
+            item = await get_integration(integration_id)
+            resolved_endpoint = item.endpoint if item else ""
+        if not resolved_endpoint:
+            raise RuntimeError("No HTTPS sender endpoint is available for this integration.")
+        runtime_url = _join_runtime_endpoint(resolved_endpoint)
+        # Validate all request input before acquiring/sending SAP credentials.
+        authorization = None
     if any(any(ord(char) < 32 or ord(char) > 126 for char in value) for value in [entity, pulse_query]):
         raise InvalidRuntimeEndpoint("Immediate-run headers require printable ASCII; percent-encode query values.")
-    token = await get_access_token()
+    if authorization is None:
+        authorization = "Bearer " + await get_access_token()
     headers = {
-        "Authorization": f"Bearer {token}",
+        "Authorization": authorization,
         "Accept": "application/json",
         "Content-Type": "application/json",
     }
@@ -467,7 +511,7 @@ async def trigger_immediate_run(
         headers["filter.pulseQuery"] = pulse_query
         headers["filter-pulseQuery"] = pulse_query
         headers["X-Pulse-Query"] = pulse_query
-    async with httpx.AsyncClient(timeout=120) as client:
+    async with httpx.AsyncClient(timeout=120, follow_redirects=False) as client:
         resp = await client.post(
             runtime_url,
             headers=headers,
@@ -503,6 +547,7 @@ async def list_monitoring() -> List[MonitoringItem]:
             name=r.get("Name", r.get("Id", "")),
             packageName=r.get("PackageId", ""),
             status=r.get("Status", "STOPPED"),
+            endpoint=r.get("Endpoint") or r.get("Url") or "",
             sender=r.get("Sender") or "",
             receiver=r.get("Receiver") or "",
             messages24h=count[0],
@@ -525,6 +570,7 @@ def _log_time(value):
 
 
 async def _get_recent_logs(integration_id: str, now: datetime) -> List[dict]:
+    api_base, _ = await _management_connection()
     since = now - timedelta(hours=24)
     filter_expr = (f"IntegrationFlowName eq {_odata_filter_literal(integration_id)} and "
                    f"LogEnd ge datetime'{since.strftime('%Y-%m-%dT%H:%M:%S')}'")
@@ -550,8 +596,8 @@ async def _get_recent_logs(integration_id: str, now: datetime) -> List[dict]:
         if not isinstance(next_url, str):
             raise InvalidUpstreamResponse("Integration Suite returned an invalid log page link.")
         try:
-            full = urlsplit(urljoin(SETTINGS.is_api_base + path, next_url))
-            base = urlsplit(SETTINGS.is_api_base)
+            full = urlsplit(urljoin(api_base + path, next_url))
+            base = urlsplit(api_base)
         except ValueError as exc:
             raise InvalidUpstreamResponse("Integration Suite returned an invalid log page link.") from exc
         expected_path = base.path.rstrip("/") + "/MessageProcessingLogs"
@@ -584,12 +630,12 @@ async def get_message_logs(integration_id: str) -> List[MessageLog]:
     results = _odata_results(data)
     return [
         MessageLog(
-            messageId=r.get("MessageGuid", ""),
+            messageId=r.get("MessageGuid") or r.get("MessageId") or "",
             status=r.get("Status", ""),
             sender=r.get("Sender", ""),
             logEnd=r.get("LogEnd"),
-            durationMs=0,
-            errorMessage=r.get("CustomStatus", ""),
+            durationMs=r.get("Duration") or 0,
+            errorMessage=r.get("CustomStatus") or r.get("ErrorMessage") or "",
         )
-        for r in results
+        for r in results if str(r.get("Status") or "").upper() != "DISCARDED"
     ]

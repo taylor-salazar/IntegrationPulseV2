@@ -33,20 +33,24 @@ test('grouping, value types, dirty state, reset and untouched timer preserve par
   const values = ['', null, 'false', '000123', '0', 'line1\nline2', '员工 &%+ <script>', 'x'.repeat(10000)];
   const configs = values.map((value, i) => ({ key: 'odd.k' + i, value, dataType: i % 2 ? 'unknown' : 'xsd:string' }));
   models.parameters.setProperty('/groups', d._groupParams(configs));
-  assert.deepEqual(plain(d._collectParams()).map(p => p.value), values);
+  assert.deepEqual(plain(d._collectParams()), []);
+  assert.deepEqual(plain(models.parameters.getProperty("/groups")).flatMap(g => g.params.map(p => p.value)), values);
   d._recomputeDirty(); assert.equal(models.detailView.getProperty('/dirty'), false);
   models.parameters.getProperty('/groups')[0].params[0].value = 'changed'; d.onParamChange();
   assert.equal(models.detailView.getProperty('/dirty'), true); d.onReset();
-  assert.deepEqual(plain(d._collectParams()).map(p => p.value), values);
+  assert.deepEqual(plain(d._collectParams()), []);
+  assert.deepEqual(plain(models.parameters.getProperty("/groups")).flatMap(g => g.params.map(p => p.value)), values);
   models.parameters.setProperty('/groups', d._groupParams(fixtures.parameters));
-  assert.equal(d._collectParams().find(p => p.key === 'timer.cron').value, fixtures.parameters.at(-1).value);
+  assert.deepEqual(plain(d._collectParams()), []);
+  assert.equal(d._findParamValue('timer.cron'), fixtures.parameters.at(-1).value);
   assert.equal(models.parameters.getProperty('/groups')[0].prefix, 'pulse');
   assert.equal(d._groupParams([]).length, 0);
 });
 test('duplicate ordinary parameter keys remain separate and unknown types survive serialization', () => {
   const { instance: d, models } = detail();
   models.parameters.setProperty('/groups', d._groupParams([{ key: 'a', value: '1' }, { key: 'a', value: '2', dataType: 'custom' }]));
-  assert.equal(d._collectParams().length, 2); assert.equal(d._collectParams()[1].dataType, 'custom');
+  models.parameters.getProperty('/groups')[0].params[1].value = '3';
+  assert.equal(d._collectParams().length, 1); assert.equal(d._collectParams()[0].dataType, 'custom');
 });
 test('feature flags derive from parameters and unsupported action does not open dialog', () => {
   const { instance: d, models } = detail(); d._updateStandardFeatureFlags();
@@ -107,7 +111,7 @@ test('save/deploy/run success and failure clear busy and preserve separation', a
     await flush(); assert.equal(models.detailView.getProperty('/busy'), false); assert.equal(calls.length, 1);
     assert.equal(calls[0].method, { save: 'updateConfigurations', deploy: 'deployIntegration', run: 'triggerImmediateRun' }[action]);
     if (fails) assert.equal(models.detailView.getProperty('/dirty'), true);
-    if (!fails && action !== 'run') { assert.equal(calls[0].args[0], 'design-id'); assert.equal(models.detailView.getProperty('/dirty'), false); }
+    if (!fails && action !== 'run') { assert.equal(calls[0].args[0], 'runtime-id'); assert.equal(models.detailView.getProperty('/dirty'), false); }
   }
 });
 test('Home and Monitoring Detail use the same review store and payload association', () => {
@@ -187,8 +191,8 @@ regression('QA-06', 'late detail load overwrites newer navigation with mixed met
 regression('QA-07', 'save completion marks a later unsaved edit pristine', async () => {
   const pending = deferred(); let sent;
   const { instance: d, models } = detail({ overrides: { 'integrationpulse/service/BackendClient': { updateConfigurations: (_, configs) => { sent = plain(configs); return pending.promise; } } } });
-  d.onSaveDraft(); const param = models.parameters.getProperty('/groups')[0].params[0]; param.value = 'edited while saving';
-  pending.resolve({}); await flush(); assert.equal(sent[0].value, 'true');
+  const param = models.parameters.getProperty('/groups')[0].params[0]; param.value = 'yes'; d.onSaveDraft(); param.value = 'edited while saving';
+  pending.resolve({}); await flush(); assert.equal(sent[0].value, 'yes');
   d._recomputeDirty(); assert.equal(models.detailView.getProperty('/dirty'), true);
 });
 regression('QA-08', 'repeated immediate submission sends duplicate requests', async () => {

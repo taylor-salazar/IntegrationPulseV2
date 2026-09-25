@@ -18,6 +18,8 @@ from psycopg.rows import dict_row
 CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS integration_payloads (
     id UUID PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    ingested_by_client_id TEXT NOT NULL,
     integration_id TEXT NOT NULL,
     message_id TEXT,
     file_name TEXT NOT NULL,
@@ -32,8 +34,8 @@ CREATE TABLE IF NOT EXISTS integration_payloads (
 """
 
 CREATE_INDEX_SQL = """
-CREATE INDEX IF NOT EXISTS idx_integration_payloads_lookup
-ON integration_payloads (integration_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_integration_payloads_tenant_lookup
+ON integration_payloads (tenant_id, integration_id, created_at DESC);
 """
 
 _INITIALIZED = False
@@ -144,32 +146,35 @@ def init_db() -> None:
     with _connect() as conn:
         with conn.cursor() as cur:
             cur.execute(CREATE_TABLE_SQL)
+            # CREATE IF NOT EXISTS cannot upgrade pre-Step-2A tables.
+            # The explicit migration must be applied before starting this build.
+            cur.execute("SELECT tenant_id, ingested_by_client_id FROM integration_payloads LIMIT 0")
             cur.execute(CREATE_INDEX_SQL)
         conn.commit()
     _INITIALIZED = True
 
 
-def prune_expired() -> None:
+def prune_expired(tenant_id: str) -> None:
     with _connect() as conn:
         with conn.cursor() as cur:
-            cur.execute("DELETE FROM integration_payloads WHERE expires_at <= NOW()")
+            cur.execute("DELETE FROM integration_payloads WHERE tenant_id = %s AND expires_at <= NOW()", (tenant_id,))
         conn.commit()
 
 
 def create_payload(item: dict) -> dict:
     init_db()
-    prune_expired()
+    prune_expired(item["tenantId"])
     with _connect() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
                 INSERT INTO integration_payloads (
-                    id, integration_id, message_id, file_name, content_type,
+                    id, tenant_id, ingested_by_client_id, integration_id, message_id, file_name, content_type,
                     size_bytes, created_at, expires_at, preview_available,
                     download_only, payload
                 )
                 VALUES (
-                    %(id)s, %(integrationId)s, %(messageId)s, %(fileName)s,
+                    %(id)s, %(tenantId)s, %(ingestedByClientId)s, %(integrationId)s, %(messageId)s, %(fileName)s,
                     %(contentType)s, %(sizeBytes)s, %(createdAt)s, %(expiresAt)s,
                     %(previewAvailable)s, %(downloadOnly)s, %(payload)s
                 )
@@ -182,9 +187,9 @@ def create_payload(item: dict) -> dict:
     return _row_to_payload(row, include_payload=False)
 
 
-def list_payloads(integration_id: str) -> list[dict]:
+def list_payloads(integration_id: str, tenant_id: str) -> list[dict]:
     init_db()
-    prune_expired()
+    prune_expired(tenant_id)
     with _connect() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -192,27 +197,27 @@ def list_payloads(integration_id: str) -> list[dict]:
                 SELECT id, integration_id, message_id, file_name, content_type,
                        size_bytes, created_at, expires_at, preview_available, download_only
                 FROM integration_payloads
-                WHERE integration_id = %s AND expires_at > NOW()
+                WHERE integration_id = %s AND tenant_id = %s AND ingested_by_client_id IS NOT NULL AND expires_at > NOW()
                 ORDER BY created_at DESC
                 """,
-                (integration_id,),
+                (integration_id, tenant_id),
             )
             rows = cur.fetchall()
     return [_row_to_payload(row, include_payload=False) for row in rows]
 
 
-def get_payload(payload_id: str) -> Optional[dict]:
+def get_payload(payload_id: str, tenant_id: str) -> Optional[dict]:
     init_db()
-    prune_expired()
+    prune_expired(tenant_id)
     with _connect() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
                 SELECT *
                 FROM integration_payloads
-                WHERE id = %s AND expires_at > NOW()
+                WHERE id = %s AND tenant_id = %s AND ingested_by_client_id IS NOT NULL AND expires_at > NOW()
                 """,
-                (payload_id,),
+                (payload_id, tenant_id),
             )
             row = cur.fetchone()
     return _row_to_payload(row, include_payload=True) if row else None

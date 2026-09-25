@@ -112,7 +112,7 @@
 												type="Transparent"
 												tooltip="{i18n>quickDeploy}"
 												enabled="{= ${view>/deployingId} !== ${selectedIntegrations>id} }"
-												press=".onDeployFromCard"/>
+												visible="{session>/capabilities/administer}" press=".onDeployFromCard"/>
 										</HBox>
 									</content>
 								</TileContent>

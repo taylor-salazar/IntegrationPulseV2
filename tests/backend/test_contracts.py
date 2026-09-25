@@ -6,7 +6,7 @@ from unittest.mock import patch
 from urllib.parse import unquote
 
 from support import auth, btp_client as btp, config, main, httpx, FIXTURES, transport_patch, deny_http, sap_response
-from fastapi.testclient import TestClient
+from authenticated_client import TestClient
 from models import ConfigurationUpdate
 from errors import InvalidUpstreamResponse
 

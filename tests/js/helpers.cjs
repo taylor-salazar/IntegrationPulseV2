@@ -23,7 +23,7 @@ function storage(seed = {}) {
   const values = new Map(Object.entries(seed));
   return { getItem: k => values.get(k) ?? null, setItem: (k, v) => values.set(k, String(v)), removeItem: k => values.delete(k) };
 }
-function harness({ search = '', fetch: boundary, localStorage = storage(), overrides = {}, immediateTimers = false, clock = Date } = {}) {
+function harness({ search = '', fetch: boundary, localStorage = storage(), overrides = {}, immediateTimers = false, clock = Date, globals = {} } = {}) {
   const cache = new Map();
   const calls = [], notices = [];
   const config = { useMock: false, liveMode: 'destination', destinationBaseUrl: '/api/v1', immediateRunBaseUrl: '', payloadBaseUrl: '/payload-api/v1', backendBaseUrl: 'http://proxy.test' };
@@ -70,7 +70,8 @@ function harness({ search = '', fetch: boundary, localStorage = storage(), overr
         calls.push({ url, ...options });
         if (!boundary) throw new Error('Unexpected HTTP request: ' + url);
         return boundary(url, options);
-      }
+      },
+      ...globals
     }, { filename: file });
     cache.set(file, exported);
     return exported;

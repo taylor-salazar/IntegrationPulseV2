@@ -1,9 +1,8 @@
 """Runtime settings for the Integration Pulse proxy.
 
 All values come from environment variables (see .env.example). When use_mock is
-True (the default), no BTP credentials are required and the proxy serves the same
-fixtures the frontend ships with — so a colleague can run the full stack with
-zero tenant access.
+True locally, the proxy serves fixtures instead of calling SAP. API authentication
+is still required. Cloud Foundry deployments must explicitly select live mode.
 """
 from __future__ import annotations
 
@@ -35,6 +34,7 @@ def _list(name: str, default: List[str]) -> List[str]:
 
 @dataclass
 class Settings:
+    sap_transport: str = field(default_factory=lambda: os.getenv("PULSE_SAP_TRANSPORT", "destination"))
     # Demo switch — when True the proxy returns local fixtures, no BTP calls.
     use_mock: bool = field(default_factory=lambda: _bool("INTEGRATION_PULSE_USE_MOCK", True))
 
@@ -69,3 +69,5 @@ class Settings:
 
 
 SETTINGS = Settings()
+if os.getenv("VCAP_APPLICATION") and (SETTINGS.use_mock or SETTINGS.sap_transport != "destination"):
+    raise RuntimeError("Cloud deployment requires live mode and destination transport")

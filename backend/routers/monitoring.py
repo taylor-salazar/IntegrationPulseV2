@@ -7,12 +7,13 @@ from __future__ import annotations
 
 from typing import List
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 
 import btp_client
+from security import viewer, administrator
 from models import MessageLog, MonitoringItem
 
-router = APIRouter(prefix="/api/monitoring", tags=["monitoring"])
+router = APIRouter(prefix="/api/monitoring", tags=["monitoring"], dependencies=[Depends(viewer)])
 
 
 @router.get("/by-id", response_model=MonitoringItem)

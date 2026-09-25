@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 from support import main, payload_storage as store, config, transport_patch, deny_http
-from fastapi.testclient import TestClient
+from authenticated_client import TestClient
 from routers import payloads
 
 NOW = datetime(2026, 9, 7, 12, 0, tzinfo=timezone.utc)
@@ -21,8 +21,8 @@ class PayloadRoutes(unittest.TestCase):
         def create(item): self.items[item['id']] = copy.deepcopy(item); return item
         patches = [transport_patch(deny_http), patch.object(payloads, '_now', return_value=NOW),
                    patch.object(store, 'create_payload', side_effect=create),
-                   patch.object(store, 'get_payload', side_effect=lambda key: copy.deepcopy(self.items.get(key))),
-                   patch.object(store, 'list_payloads', side_effect=lambda key: [v for v in self.items.values() if v['integrationId'] == key])]
+                   patch.object(store, 'get_payload', side_effect=lambda key, tenant: copy.deepcopy(self.items.get(key)) if self.items.get(key, {}).get('tenantId') == tenant else None),
+                   patch.object(store, 'list_payloads', side_effect=lambda key, tenant: [v for v in self.items.values() if v['integrationId'] == key and v['tenantId'] == tenant])]
         for p in patches: p.start(); self.addCleanup(p.stop)
 
     def post(self, body, content_type='text/plain', **params):
@@ -93,20 +93,20 @@ class StorageContracts(unittest.TestCase):
 
     def test_schema_once_parameterized_queries_and_expiration_predicates(self):
         self.cursor.fetchall.return_value = [self.row()]
-        result = store.list_payloads("id' OR 1=1 --")
+        result = store.list_payloads("id' OR 1=1 --", "tenant-a")
         self.assertEqual(len(result), 1); self.assertNotIn('payload', result[0])
         sql_calls = self.cursor.execute.call_args_list
         self.assertTrue(any('expires_at <= NOW()' in c.args[0] for c in sql_calls))
-        self.assertIn('expires_at > NOW()', sql_calls[-1].args[0]); self.assertEqual(sql_calls[-1].args[1], ("id' OR 1=1 --",))
+        self.assertIn('expires_at > NOW()', sql_calls[-1].args[0]); self.assertEqual(sql_calls[-1].args[1], ("id' OR 1=1 --", "tenant-a"))
         count = sum('CREATE TABLE' in c.args[0] for c in sql_calls)
-        store.list_payloads('id'); self.assertEqual(sum('CREATE TABLE' in c.args[0] for c in self.cursor.execute.call_args_list), count)
-        self.cursor.fetchone.return_value = self.row(); self.assertEqual(store.get_payload('id')['payload'], 'body')
-        self.assertEqual(self.cursor.execute.call_args.args[1], ('id',))
-        self.cursor.fetchone.return_value = None; self.assertIsNone(store.get_payload('missing'))
+        store.list_payloads('id', 'tenant-a'); self.assertEqual(sum('CREATE TABLE' in c.args[0] for c in self.cursor.execute.call_args_list), count)
+        self.cursor.fetchone.return_value = self.row(); self.assertEqual(store.get_payload('id', 'tenant-a')['payload'], 'body')
+        self.assertEqual(self.cursor.execute.call_args.args[1], ('id', 'tenant-a'))
+        self.cursor.fetchone.return_value = None; self.assertIsNone(store.get_payload('missing', 'tenant-a'))
 
     def test_create_uses_bound_parameters_and_does_not_return_body(self):
         self.cursor.fetchone.return_value = self.row()
-        item = store._row_to_payload(self.row()); item['fileName'] = '../../x.txt'
+        item = store._row_to_payload(self.row()); item.update(tenantId='tenant-a', ingestedByClientId='machine'); item['fileName'] = '../../x.txt'
         result = store.create_payload(item)
         self.assertNotIn('payload', result)
         self.assertIs(self.cursor.execute.call_args.args[1], item)

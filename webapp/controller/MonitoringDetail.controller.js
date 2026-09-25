@@ -95,7 +95,7 @@ sap.ui.define([
 			Promise.all([
 				BackendClient.getMonitoringItem(this._sId),
 				BackendClient.getMessageLogs(this._sId),
-				BackendClient.getPayloads(this._sId).catch(function () { return []; })
+				BackendClient.getPayloads(this._sId)
 			]).then(function (aRes) {
 				that.getModel("monitoringItem").setData(aRes[0] || {});
 				var aLogs = that._attachPayloads(visibleMessageLogs(aRes[1] || []), aRes[2] || [], aRes[0] || {});
@@ -137,8 +137,8 @@ sap.ui.define([
 				});
 				return Promise.all(aItems.map(function (oItem) {
 					return Promise.all([
-						BackendClient.getMessageLogs(oItem.id).catch(function () { return []; }),
-						BackendClient.getPayloads(oItem.id).catch(function () { return []; })
+						BackendClient.getMessageLogs(oItem.id),
+						BackendClient.getPayloads(oItem.id)
 					]).then(function (aLogPayloads) {
 						var aLogs = that._attachPayloads(visibleMessageLogs(aLogPayloads[0] || []), aLogPayloads[1] || [], oItem);
 						return aLogs.map(function (oLog) {
@@ -294,7 +294,7 @@ sap.ui.define([
 		onDownloadPayload: function () {
 			var sId = this.getModel("payloadDetail").getProperty("/id");
 			if (sId) {
-				window.open(BackendClient.getPayloadDownloadUrl(sId), "_blank", "noopener");
+				BackendClient.downloadPayload(sId).catch(function (error) { MessageBox.error(error.message); });
 			}
 		},
 

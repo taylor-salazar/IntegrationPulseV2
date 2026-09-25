@@ -1,0 +1,131 @@
+_schema-version: '3.3'
+ID: integration-pulse
+version: 0.2.0
+parameters:
+  enable-parallel-deployments: false
+  tenant-id: ''
+  jwt-issuer: ''
+  management-destination: ''
+  runtime-destination: ''
+  ingest-client-ids: ''
+  sensitive-fields: '[]'
+  postgres-service-name: pulse-postgres
+modules:
+  - name: pulse-api
+    type: python
+    path: backend
+    parameters:
+      buildpack: python_buildpack
+      memory: 256M
+      command: uvicorn main:app --host 0.0.0.0 --port $PORT --no-access-log
+    properties:
+      INTEGRATION_PULSE_USE_MOCK: 'false'
+      PULSE_SAP_TRANSPORT: destination
+      PULSE_TENANT_ID: ${tenant-id}
+      PULSE_JWT_ISSUER: ${jwt-issuer}
+      PULSE_XSUAA_SERVICE: pulse-auth
+      PULSE_DESTINATION_SERVICE: pulse-destination
+      PULSE_MANAGEMENT_DESTINATION: ${management-destination}
+      PULSE_RUNTIME_DESTINATION: ${runtime-destination}
+      PULSE_INGEST_CLIENT_IDS: ${ingest-client-ids}
+      PULSE_SENSITIVE_FIELDS: ${sensitive-fields}
+      PULSE_PAYLOAD_MAX_BYTES: '1048576'
+    requires:
+      - name: pulse-auth
+      - name: pulse-destination
+      - name: pulse-postgres
+    provides:
+      - name: pulse-api-url
+        properties:
+          url: ${default-url}
+  - name: integration-pulse-ui
+    type: html5
+    path: .
+    build-parameters:
+      builder: custom
+      commands:
+        - npm ci
+        - npm run build
+      build-result: dist
+      supported-platforms: []
+  - name: pulse-ui-content
+    type: com.sap.application.content
+    path: .
+    requires:
+      - name: pulse-html5-host
+        parameters:
+          content-target: true
+    build-parameters:
+      build-result: resources
+      requires:
+        - name: integration-pulse-ui
+          artifacts:
+            - integration-pulse-ui.zip
+          target-path: resources/
+  - name: pulse-destination-content
+    type: com.sap.application.content
+    requires:
+      - name: pulse-destination
+        parameters:
+          content-target: true
+      - name: pulse-api-url
+      - name: pulse-html5-host
+        parameters:
+          service-key:
+            name: pulse-html5-key
+      - name: pulse-auth
+        parameters:
+          service-key:
+            name: pulse-auth-key
+    parameters:
+      content:
+        instance:
+          existing_destinations_policy: update
+          destinations:
+            - Name: pulse-api
+              Type: HTTP
+              ProxyType: Internet
+              URL: ~{pulse-api-url/url}
+              Authentication: NoAuthentication
+              HTML5.ForwardAuthToken: true
+              HTML5.DynamicDestination: true
+            - Name: pulse-html5-host
+              ServiceInstanceName: pulse-html5-host
+              ServiceKeyName: pulse-html5-key
+              sap.cloud.service: integrationpulse
+            - Name: pulse-auth
+              Authentication: OAuth2UserTokenExchange
+              ServiceInstanceName: pulse-auth
+              ServiceKeyName: pulse-auth-key
+              sap.cloud.service: integrationpulse
+    build-parameters:
+      no-source: true
+resources:
+  - name: pulse-auth
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: xsuaa
+      service-plan: application
+      path: ./xs-security.json
+  - name: pulse-ingest-auth
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: xsuaa
+      service-plan: application
+      path: ./xs-security-ingest.json
+  - name: pulse-destination
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: destination
+      service-plan: lite
+      config:
+        HTML5Runtime_enabled: true
+  - name: pulse-html5-host
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: html5-apps-repo
+      service-plan: app-host
+  - name: pulse-postgres
+    type: org.cloudfoundry.existing-service
+    parameters:
+      service-name: ${postgres-service-name}

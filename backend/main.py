@@ -8,12 +8,13 @@ Run locally:
     pip install -r requirements.txt
     uvicorn main:app --reload --port 8000
 
-By default it runs in mock mode (no BTP access needed). Set
-INTEGRATION_PULSE_USE_MOCK=false plus the OAuth/IS env vars to go live.
+Local mock mode replaces SAP calls, but never disables API authentication.
+Production uses live mode, XSUAA and Destination service bindings; see the
+Step 2A runbook for deployment and local development prerequisites.
 """
 from __future__ import annotations
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import httpx
@@ -21,6 +22,7 @@ import httpx
 from config import SETTINGS
 from routers import integrations, monitoring, payloads
 from errors import InvalidRuntimeEndpoint
+from security import Principal, viewer
 
 app = FastAPI(
     title="Integration Pulse API",
@@ -46,6 +48,8 @@ async def security_headers(request: Request, call_next):
     by the configured SuccessFactors / Work Zone domains.
     """
     response = await call_next(request)
+    if request.url.path.startswith(("/api/", "/payload-api/")):
+        response.headers["Cache-Control"] = "no-store"
     frame_ancestors = " ".join(SETTINGS.frame_ancestors)
     response.headers["Content-Security-Policy"] = f"frame-ancestors {frame_ancestors};"
     return response
@@ -54,6 +58,11 @@ async def security_headers(request: Request, call_next):
 @app.get("/health", tags=["meta"])
 async def health():
     return {"status": "ok", "mock": SETTINGS.use_mock}
+
+
+@app.get("/api/session")
+async def session(principal: Principal = Depends(viewer)):
+    return {"capabilities": principal.capabilities()}
 
 
 @app.exception_handler(RuntimeError)

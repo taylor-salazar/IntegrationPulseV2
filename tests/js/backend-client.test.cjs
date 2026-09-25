@@ -47,11 +47,11 @@ test('empty and large catalogs remain runtime-only; duplicates are retained as r
 });
 for (const id of fixtures.sensitiveIds) {
   test('configuration literal decodes once to original ID: ' + id, async () => {
-    const h = harness({ fetch: () => odata([]) });
+    const h = harness({ fetch: url => url.endsWith('/Configurations') ? odata([]) : json({d:{Id:id,Version:'2.0'}}) });
     await client(h).getConfigurations(id, { designTimeId: id, designTimeVersion: '2.0' });
-    const decoded = decodeURIComponent(h.calls[0].url);
+    const decoded = decodeURIComponent(h.calls.at(-1).url);
     assert.equal(decoded, `/api/v1/IntegrationDesigntimeArtifacts(Id='${id.replaceAll("'", "''")}',Version='2.0')/Configurations`);
-    assert.equal(h.calls.length, 1);
+    assert.equal(h.calls.length, 2);
   });
   test('destination log filter uses exactly one encoding layer: ' + id, async () => {
     const h = harness({ fetch: () => odata([]) }); await client(h).getMessageLogs(id);
@@ -59,9 +59,9 @@ for (const id of fixtures.sensitiveIds) {
   });
 }
 test('version mismatch tries candidates and retains configuration text', async () => {
-  const h = harness({ fetch: url => url.includes("Version='1.0'") ? odata([{ ParameterKey: 'a', ParameterValue: '000\n员工&+%' }]) : new Response('not found', { status: 404 }) });
+  const h = harness({ fetch: url => url.includes("Version='1.0'") ? (url.endsWith('/Configurations') ? odata([{ ParameterKey: 'a', ParameterValue: '000\n员工&+%' }]) : json({ d: { Id: 'id', Version: '1.0' } })) : new Response('not found', { status: 404 }) });
   const values = await client(h).getConfigurations('id', { version: '1.0' });
-  assert.equal(values[0].value, '000\n员工&+%'); assert.equal(h.calls.length, 3);
+  assert.equal(values[0].value, '000\n员工&+%'); assert.equal(h.calls.length, 4);
 });
 test('missing artifact fails with candidate diagnostics and no tenant-wide catalog call', async () => {
   const h = harness({ fetch: () => new Response('SAP not found', { status: 404 }) });
@@ -123,7 +123,8 @@ test('real controller → additive query → real client → all three headers',
   for (const key of ['filter.pulseQuery', 'filter-pulseQuery', 'X-Pulse-Query']) assert.equal(h.calls[0].headers[key], options.pulseQuery);
   assert.match(options.pulseQuery, /userId,startDate,companyNav\/name,customString1/);
   assert.match(options.pulseQuery, /companyNav,managerNav/);
-  assert.deepEqual(Object.fromEntries(plain(d._collectParams()).map(p => [p.key, p.value])), Object.fromEntries(fixtures.parameters.map(p => [p.key, p.value])));
+  assert.deepEqual(plain(d._collectParams()), []);
+  for (const p of fixtures.parameters) assert.equal(d._findParam(p.key).value, p.value);
 });
 test('proxy request contracts encode query identity and serialize bodies/204', async () => {
   const h = harness({ search: '?mock=false&api=proxy', fetch: () => new Response(null, { status: 204 }) });

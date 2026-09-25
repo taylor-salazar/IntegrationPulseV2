@@ -4,16 +4,18 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import os
 from urllib.parse import quote
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request, Depends
 from fastapi.responses import PlainTextResponse
 
 from models import PayloadCreateRequest, PayloadDetail, PayloadSummary
 import payload_storage
+from security import administrator, ingestion, Principal
 
 router = APIRouter(prefix="/payload-api/v1/payloads", tags=["payloads"])
 
@@ -33,9 +35,10 @@ def _summary(item: dict) -> PayloadSummary:
     return PayloadSummary(**{k: item[k] for k in PayloadSummary.model_fields})
 
 
-@router.post("", response_model=PayloadSummary)
+@router.post("", response_model=PayloadSummary, dependencies=[Depends(ingestion)])
 async def create_payload(
     request: Request,
+    principal: Principal = Depends(ingestion),
     integrationId: Optional[str] = Query(None),
     messageId: Optional[str] = Query(None),
     fileName: Optional[str] = Query(None),
@@ -48,7 +51,29 @@ async def create_payload(
     """
     # Accept both old JSON wrapper payloads and raw text bodies. This keeps the
     # endpoint flexible for Integration Suite HTTP receiver calls.
-    raw_body = await request.body()
+    try:
+        limit = int(os.getenv("PULSE_PAYLOAD_MAX_BYTES", "1048576"))
+        if limit < 1:
+            raise ValueError()
+    except ValueError:
+        raise HTTPException(503, "Payload size limit is not configured correctly") from None
+    if request.headers.get("content-encoding", "identity") != "identity":
+        raise HTTPException(415, "Compressed ingestion is not supported")
+    try:
+        length = int(request.headers.get("content-length", "0"))
+        if length < 0:
+            raise ValueError()
+    except ValueError:
+        raise HTTPException(400, "Invalid Content-Length") from None
+    if length > limit:
+        raise HTTPException(413, "Payload exceeds configured upload limit")
+    chunks, size = [], 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > limit:
+            raise HTTPException(413, "Payload exceeds configured upload limit")
+        chunks.append(chunk)
+    raw_body = b"".join(chunks)
     headers = request.headers
     content_type = headers.get("content-type", "text/plain").split(";")[0] or "text/plain"
     raw_text = raw_body.decode("utf-8", errors="replace")
@@ -91,6 +116,8 @@ async def create_payload(
     download_only = size_bytes > PREVIEW_LIMIT_BYTES
     item = {
         "id": str(uuid4()),
+        "tenantId": principal.tenant_id,
+        "ingestedByClientId": principal.client_id,
         "integrationId": body.integrationId,
         "messageId": body.messageId,
         "fileName": body.fileName,
@@ -106,17 +133,17 @@ async def create_payload(
     return _summary(saved)
 
 
-@router.get("", response_model=List[PayloadSummary])
-async def list_payloads(integrationId: str = Query(...)):
+@router.get("", response_model=List[PayloadSummary], dependencies=[Depends(administrator)])
+async def list_payloads(integrationId: str = Query(...), principal: Principal = Depends(administrator)):
     """List unexpired payloads for one integration."""
-    items = await asyncio.to_thread(payload_storage.list_payloads, integrationId)
+    items = await asyncio.to_thread(payload_storage.list_payloads, integrationId, principal.tenant_id)
     return [_summary(item) for item in items]
 
 
-@router.get("/{payload_id}", response_model=PayloadDetail)
-async def get_payload(payload_id: str):
+@router.get("/{payload_id}", response_model=PayloadDetail, dependencies=[Depends(administrator)])
+async def get_payload(payload_id: str, principal: Principal = Depends(administrator)):
     """Return payload content when it is small enough for inline preview."""
-    item = await asyncio.to_thread(payload_storage.get_payload, payload_id)
+    item = await asyncio.to_thread(payload_storage.get_payload, payload_id, principal.tenant_id)
     if item:
         detail = PayloadDetail(**item)
         if item["downloadOnly"]:
@@ -125,10 +152,10 @@ async def get_payload(payload_id: str):
     raise HTTPException(status_code=404, detail="Payload not found")
 
 
-@router.get("/{payload_id}/download")
-async def download_payload(payload_id: str):
+@router.get("/{payload_id}/download", dependencies=[Depends(administrator)])
+async def download_payload(payload_id: str, principal: Principal = Depends(administrator)):
     """Download the raw text payload."""
-    item = await asyncio.to_thread(payload_storage.get_payload, payload_id)
+    item = await asyncio.to_thread(payload_storage.get_payload, payload_id, principal.tenant_id)
     if item:
         # Also sanitize older stored names, not only new receiver input.
         name = re.sub(r'[\x00-\x1f\x7f"\\/]', '_', item["fileName"]) or "payload.txt"

@@ -1,0 +1,13 @@
+{
+  "xsappname": "integration-pulse",
+  "tenant-mode": "dedicated",
+  "scopes": [
+    {"name": "$XSAPPNAME.Viewer", "description": "Read integrations, configurations and monitoring"},
+    {"name": "$XSAPPNAME.Administrator", "description": "Operate integrations and read captured payloads"},
+    {"name": "$XSAPPNAME.Payload.Ingest", "description": "Machine-only payload ingestion", "grant-as-authority-to-apps": ["$XSAPPNAME(application,integration-pulse-ingest)"]}
+  ],
+  "role-templates": [
+    {"name": "Viewer", "description": "Integration Pulse viewer", "scope-references": ["$XSAPPNAME.Viewer"]},
+    {"name": "Administrator", "description": "Integration Pulse administrator", "scope-references": ["$XSAPPNAME.Viewer", "$XSAPPNAME.Administrator"]}
+  ]
+}

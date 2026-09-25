@@ -1,0 +1,6 @@
+{
+  "xsappname": "integration-pulse-ingest",
+  "tenant-mode": "dedicated",
+  "authorities": ["$XSAPPNAME(application,integration-pulse).Payload.Ingest"],
+  "oauth2-configuration": {"grant-types": ["client_credentials"]}
+}

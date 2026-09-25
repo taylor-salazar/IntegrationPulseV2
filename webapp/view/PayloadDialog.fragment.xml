@@ -33,7 +33,7 @@
 			</VBox>
 		</content>
 		<beginButton>
-			<Button text="{i18n>downloadPayload}" icon="sap-icon://download" press=".onDownloadPayload"/>
+			<Button text="{i18n>downloadPayload}" icon="sap-icon://download" visible="{session>/capabilities/readPayloads}" press=".onDownloadPayload"/>
 		</beginButton>
 		<endButton>
 			<Button text="{i18n>close}" press=".onClosePayloadDialog"/>

@@ -107,8 +107,6 @@ sap.ui.define([
 				return this._mapWithConcurrency(aIntegrations || [], LOG_FETCH_CONCURRENCY, function (oIntegration) {
 					return BackendClient.getMessageLogs(oIntegration.id).then(function (aLogs) {
 						return this._toLastRunRow(oIntegration, latestLog(aLogs), aLogs);
-					}.bind(this)).catch(function () {
-						return this._toLastRunRow(oIntegration, null, []);
 					}.bind(this));
 				}.bind(this));
 			}.bind(this)).then(function (aRows) {

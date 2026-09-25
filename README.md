@@ -13,9 +13,11 @@ Where SWIFT *designs and builds* integrations, Integration Pulse *operates* them
 
 It is designed to be **embedded inside SuccessFactors** (iframe / Work Zone tile).
 
-> **Demo mode is on by default.** `npm install && npm start` gives you a fully
+> **Step 2A production deployment:** See [the security and deployment runbook](docs/step-2a-security-deployment.md). Production routes through XSUAA and FastAPI using separate SAP technical destinations. The older setup sections below describe local reference workflows and do not replace that runbook.
+>
+> **Local demo mode:** `npm install && npm start` gives you a fully
 > working app driven by local fixtures — **no BTP tenant access required**. The
-> real SAP BTP API calls are clearly marked placeholders in the backend.
+> production build is locked to authenticated FastAPI mode; URL switches cannot enable the demo.
 
 ---
 

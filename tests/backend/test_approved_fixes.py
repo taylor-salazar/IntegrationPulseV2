@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 from support import auth, btp_client as btp, config, main, httpx, transport_patch, deny_http, sap_response
-from fastapi.testclient import TestClient
+from authenticated_client import TestClient
 from errors import InvalidRuntimeEndpoint, InvalidUpstreamResponse
 
 NOW = datetime(2026, 9, 8, 12, 0, tzinfo=timezone.utc)
@@ -82,7 +82,11 @@ class ApprovedFixes(unittest.IsolatedAsyncioTestCase):
         with transport_patch(unavailable), self.assertRaises(httpx.HTTPStatusError): await btp.list_monitoring()
 
     async def test_query_identity_routes_support_reserved_suffixes_for_every_action(self):
-        with TestClient(main.app) as client, transport_patch(sap_response):
+        def selected_response(request):
+            if request.url.path.endswith('/IntegrationRuntimeArtifacts'):
+                return httpx.Response(200, json={'d':{'results':[{'Id':integration_id,'Name':integration_id,'IntegrationDesigntimeArtifactId':'design-id','Version':'1.0'}]}})
+            return sap_response(request)
+        with TestClient(main.app) as client, transport_patch(selected_response):
             for integration_id in ['a/b', 'a/configurations', "O'Brien%+&员工", 'by-id']:
                 with self.subTest(integration_id=integration_id):
                     response = client.get('/api/integrations/by-id/configurations', params={'integrationId': integration_id})

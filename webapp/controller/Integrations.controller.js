@@ -365,6 +365,7 @@ sap.ui.define([
 		},
 
 		onDeployFromCard: function (oEvent) {
+            if (BackendClient.canAdminister && !BackendClient.canAdminister()) { return; }
 			if (this._bDeployConfirmOpen) { return; }
 			var oCtx = this._getIntegrationContext(oEvent.getSource());
 			var sId = oCtx ? oCtx.getProperty("id") : this._getIntegrationIdFromCustomData(oEvent.getSource());

@@ -5,9 +5,9 @@ depends on. Keep them stable; map BTP's OData shapes into these in btp_client.py
 """
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import List, Optional, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator, ConfigDict
 
 
 class Integration(BaseModel):
@@ -15,6 +15,7 @@ class Integration(BaseModel):
     name: str
     designTimeId: str = ""
     designTimeVersion: str = ""
+    identity: Optional[dict] = None
     packageName: str = ""
     version: str = ""
     status: str = "STOPPED"
@@ -30,11 +31,19 @@ class Integration(BaseModel):
 class Configuration(BaseModel):
     key: str
     label: str = ""
-    value: str = ""
+    value: Optional[str] = ""
     defaultValue: str = ""
     dataType: str = "xsd:string"
     secure: bool = False
     readOnly: bool = False
+    redacted: bool = False
+
+
+class ArtifactIdentity(BaseModel):
+    runtimeId: str
+    designTimeId: str
+    designTimeVersion: str
+    packageId: str = ""
 
 
 class ConfigurationUpdate(BaseModel):
@@ -43,10 +52,30 @@ class ConfigurationUpdate(BaseModel):
     key: str
     value: str
     dataType: str = "xsd:string"
+    action: Literal["set", "clear"] = "set"
+    model_config = ConfigDict(extra="forbid")
+
+    @model_validator(mode="after")
+    def explicit_edit(self):
+        if self.action == "clear" and self.value != "":
+            raise ValueError("Clear requires an empty value")
+        if self.action == "set" and (not self.value or self.value.lower() in {"[redacted]", "<redacted>", "[masked]"}
+                                     or (len(self.value) >= 3 and set(self.value) <= {"*", "•"})):
+            raise ValueError("Set requires an explicit non-masked value; use clear to clear")
+        return self
 
 
 class ConfigurationUpdateRequest(BaseModel):
     configurations: List[ConfigurationUpdate] = Field(default_factory=list)
+    identity: Optional[ArtifactIdentity] = None
+    model_config = ConfigDict(extra="forbid")
+
+    @model_validator(mode="after")
+    def unique_changes(self):
+        keys = [item.key for item in self.configurations]
+        if len(keys) != len(set(keys)):
+            raise ValueError("Each changed parameter must occur exactly once")
+        return self
 
 
 class DeployResponse(BaseModel):
@@ -60,6 +89,7 @@ class ImmediateRunRequest(BaseModel):
     entity: str = ""
     filterQuery: str = ""
     pulseQuery: str = ""
+    model_config = ConfigDict(extra="forbid")
 
 
 class ImmediateRunResponse(BaseModel):

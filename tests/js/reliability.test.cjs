@@ -3,14 +3,20 @@ const assert = require('node:assert/strict');
 const { harness, json, odata, deferred, flush, plain, regression, Model } = require('./helpers.cjs');
 const fixtures = require('../fixtures/contracts.json');
 
-test('Component invokes base startup then installs device model before router initialization', () => {
-  const order = [];
+test('Component waits for authenticated capabilities before starting routes', async () => {
+  const order = [], models = {}, ready=deferred();
   const base = { prototype: { init() { order.push('base'); } }, extend: (_, methods) => methods };
-  const h = harness({ overrides: { 'sap/ui/core/UIComponent': base, 'integrationpulse/model/models': { createDeviceModel: () => 'device' } } });
+  const h = harness({ overrides: { 'sap/ui/core/UIComponent': base,
+    'integrationpulse/model/models': { createDeviceModel: () => 'device' },
+    'integrationpulse/service/BackendClient': {getSession:()=>ready.promise} } });
   const component = h.load('webapp/Component.js');
-  component.init.call({ setModel(m, n) { assert.equal(m, 'device'); assert.equal(n, 'device'); order.push('model'); }, getRouter: () => ({ initialize() { order.push('router'); } }) });
-  assert.deepEqual(order, ['base', 'model', 'router']);
+  component.init.call({ setModel(m,n) { models[n]=m; order.push(n); }, getModel:n=>models[n], getRouter:()=>({initialize(){order.push('router');}}) });
+  assert.deepEqual(order,['base','device','session']);
+  ready.resolve({capabilities:{administer:false}});await flush();
+  assert.deepEqual(order,['base','device','session','router']);
+  assert.equal(models.session.getProperty('/capabilities/administer'),false);
 });
+
 test('formatters handle missing/unknown statuses, invalid timestamps and SAP dates', () => {
   const f = harness().load('webapp/model/formatter.js');
   assert.equal(f.statusState('started'), 'Success'); assert.equal(f.statusState('unknown'), 'None');
@@ -19,28 +25,25 @@ test('formatters handle missing/unknown statuses, invalid timestamps and SAP dat
   assert.equal(f.dateTime('/Date(1000+0000)/'), new Date(1000).toLocaleString());
   assert.equal(f.duration('bad'), ''); assert.equal(f.duration(1500), '1.5 s'); assert.equal(f.bytes(1024), '1.0 KB');
 });
-test('Home loads latest logs in date order, retains integrations when per-item log request fails', async () => {
+test('Home reports failed log requests without fabricating empty histories', async () => {
   const h = harness({ overrides: { 'integrationpulse/service/BackendClient': {
     getIntegrationsWithMetadata: () => Promise.resolve([{ id: 'a', sender: 'SAP' }, { id: 'b' }]),
     getMessageLogs: id => id === 'a' ? Promise.resolve([{ messageId: 'old', status: 'FAILED', logEnd: 'bad' }, { messageId: 'new', status: 'COMPLETED', logEnd: '/Date(2000)/' }]) : Promise.reject(new Error('unavailable'))
   } } });
   const { instance, models } = h.controller('Home'); instance._loadLastRuns(); await flush();
   assert.equal(models.home.getProperty('/busy'), false);
-  assert.equal(models.home.getProperty('/lastRuns').length, 2);
-  assert.equal(models.home.getProperty('/lastRuns/0/messageId'), 'new');
-  assert.equal(models.home.getProperty('/lastRuns/0/unresolvedIssues'), 1);
+  assert.equal(models.home.getProperty('/lastRuns').length, 0);
+  assert.match(h.notices.flat().join(' '), /Failed to load latest runs: unavailable/);
 });
-test('Monitoring Detail tolerates missing payload service and filters discarded rows', async () => {
+test('Monitoring Detail reports unavailable payload service', async () => {
   const h = harness({ overrides: { 'integrationpulse/service/BackendClient': {
     getMonitoringItem: () => Promise.resolve({ id: 'id' }), getMessageLogs: () => Promise.resolve(fixtures.logs), getPayloads: () => Promise.reject(new Error('unavailable'))
   } } });
   const { instance, models } = h.controller('MonitoringDetail'); instance._sId = 'id'; instance._load(); await flush();
-  assert.equal(models.monDetailView.getProperty('/busy'), false); assert.equal(models.logs.getProperty('/items').length, 3);
-  assert.ok(models.logs.getProperty('/items').every(l => !l.hasPayload));
+  assert.equal(models.monDetailView.getProperty('/busy'), false); assert.equal(models.logs.getProperty('/items').length, 0);
+  assert.match(h.notices.flat().join(' '), /Failed to load logs: unavailable/);
 });
-test('metadata candidate resolution evidence: first plausible successful match wins', async () => {
-  // Characterization of an unsupported identity assumption, not an assertion
-  // that this artifact is semantically the correct one in a real tenant.
+test('metadata candidate resolution rejects multiple plausible matches', async () => {
   const calls = [];
   const h = harness({ fetch: url => {
     calls.push(url);
@@ -48,9 +51,8 @@ test('metadata candidate resolution evidence: first plausible successful match w
     if (url.includes("Id='first'") && url.includes("Version='8'")) return odata([{ ParameterKey: 'selected', ParameterValue: 'first' }]);
     return new Response('not found', { status: 404 });
   } });
-  const result = await h.load('webapp/service/BackendClient.js').getConfigurations('runtime', {});
-  assert.equal(result[0].value, 'first');
-  assert.ok(calls.some(u => u.includes("Id='first',Version='Active'")), 'candidate IDs/versions form a Cartesian product');
+  await assert.rejects(h.load('webapp/service/BackendClient.js').getConfigurations('runtime', {}), /Ambiguous/);
+  assert.ok(!calls.some(u => u.includes('/Configurations')));
 });
 test('BAS-sensitive key literal escaping is equivalent between apostrophe and percent encodings', () => {
   const escaped = "O''Brien";
@@ -75,7 +77,7 @@ test('malformed schedules are retained as raw values when opened and saved untou
   const { instance: d, models } = harness().controller('IntegrationDetail');
   for (const value of ['', 'bad', '0 0 12 ? * MON-FRI *', 'unsupported --tz=UTC']) {
     models.parameters.setProperty('/groups', d._groupParams([{ key: 'timer.cron', value }]));
-    assert.equal(d._collectParams()[0].value, value); assert.equal(models.detailView.getProperty('/dirty'), false);
+    assert.deepEqual(JSON.parse(JSON.stringify(d._collectParams())), []); assert.equal(d._findParam('timer.cron').value, value); assert.equal(models.detailView.getProperty('/dirty'), false);
   }
 });
 test('review unresolved count reads storage once per aggregation', t => {

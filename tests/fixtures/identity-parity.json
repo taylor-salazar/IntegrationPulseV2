@@ -1,0 +1,199 @@
+[
+  {
+    "name": "Active resolves to concrete version",
+    "item": {
+      "id": "runtime",
+      "name": "runtime",
+      "designTimeId": "design"
+    },
+    "direct": [
+      {
+        "id": "design",
+        "requested": "Active",
+        "Id": "design",
+        "Version": "2"
+      }
+    ],
+    "package": [],
+    "error": null,
+    "expected": {
+      "id": "design",
+      "version": "2"
+    }
+  },
+  {
+    "name": "runtime version differs from design",
+    "item": {
+      "id": "runtime",
+      "name": "runtime",
+      "version": "1"
+    },
+    "direct": [
+      {
+        "id": "runtime",
+        "requested": "Active",
+        "Id": "actual",
+        "Version": "8"
+      }
+    ],
+    "package": [],
+    "error": null,
+    "expected": {
+      "id": "actual",
+      "version": "8"
+    }
+  },
+  {
+    "name": "package sole match",
+    "item": {
+      "id": "runtime",
+      "name": "runtime",
+      "packageName": "package"
+    },
+    "direct": [
+      {
+        "id": "found",
+        "requested": "3",
+        "Id": "found",
+        "Version": "3"
+      }
+    ],
+    "package": [
+      {
+        "Id": "found",
+        "Version": "3"
+      }
+    ],
+    "error": null,
+    "expected": {
+      "id": "found",
+      "version": "3"
+    }
+  },
+  {
+    "name": "ambiguous package",
+    "item": {
+      "id": "runtime",
+      "name": "runtime",
+      "packageName": "package"
+    },
+    "direct": [],
+    "package": [
+      {
+        "Id": "first",
+        "Version": "3"
+      },
+      {
+        "Id": "second",
+        "Version": "3"
+      }
+    ],
+    "error": "Ambiguous",
+    "expected": null
+  },
+  {
+    "name": "missing artifact",
+    "item": {
+      "id": "runtime",
+      "name": "runtime"
+    },
+    "direct": [],
+    "package": [],
+    "error": "not found",
+    "expected": null
+  },
+  {
+    "name": "apostrophe and slash identity",
+    "item": {
+      "id": "runtime",
+      "name": "runtime",
+      "designTimeId": "O'Brien/path"
+    },
+    "direct": [
+      {
+        "id": "O'Brien/path",
+        "requested": "Active",
+        "Id": "O'Brien/path",
+        "Version": "5"
+      }
+    ],
+    "package": [],
+    "error": null,
+    "expected": {
+      "id": "O'Brien/path",
+      "version": "5"
+    }
+  },
+  {
+    "name": "upstream 401",
+    "item": {
+      "id": "runtime",
+      "name": "runtime",
+      "designTimeId": "design"
+    },
+    "direct": [
+      {
+        "id": "design",
+        "requested": "Active",
+        "status": 401
+      }
+    ],
+    "package": [],
+    "error": "401",
+    "expected": null
+  },
+  {
+    "name": "upstream 403",
+    "item": {
+      "id": "runtime",
+      "name": "runtime",
+      "designTimeId": "design"
+    },
+    "direct": [
+      {
+        "id": "design",
+        "requested": "Active",
+        "status": 403
+      }
+    ],
+    "package": [],
+    "error": "403",
+    "expected": null
+  },
+  {
+    "name": "upstream 429",
+    "item": {
+      "id": "runtime",
+      "name": "runtime",
+      "designTimeId": "design"
+    },
+    "direct": [
+      {
+        "id": "design",
+        "requested": "Active",
+        "status": 429
+      }
+    ],
+    "package": [],
+    "error": "429",
+    "expected": null
+  },
+  {
+    "name": "upstream 503",
+    "item": {
+      "id": "runtime",
+      "name": "runtime",
+      "designTimeId": "design"
+    },
+    "direct": [
+      {
+        "id": "design",
+        "requested": "Active",
+        "status": 503
+      }
+    ],
+    "package": [],
+    "error": "503",
+    "expected": null
+  }
+]

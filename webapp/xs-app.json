@@ -1,0 +1,9 @@
+{
+  "welcomeFile": "/index.html",
+  "authenticationMethod": "route",
+  "routes": [
+    {"source":"^/api/(.*)$","target":"/api/$1","destination":"pulse-api","authenticationType":"xsuaa","csrfProtection":true},
+    {"source":"^/payload-api/(.*)$","target":"/payload-api/$1","destination":"pulse-api","authenticationType":"xsuaa","csrfProtection":true},
+    {"source":"^(.*)$","target":"$1","service":"html5-apps-repo-rt","authenticationType":"xsuaa"}
+  ]
+}
