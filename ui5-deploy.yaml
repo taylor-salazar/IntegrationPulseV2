@@ -19,3 +19,7 @@ builder:
       configuration:
         archiveName: integration-pulse-ui
         relativePaths: true
+        # Ship the pinned framework, including transitive libraries and themes.
+        includeDependencies: true
+        excludes:
+          - "test-resources/**"

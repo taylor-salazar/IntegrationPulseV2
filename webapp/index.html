@@ -6,13 +6,13 @@
 	<title>Integration Pulse</title>
 
 	<!--
-		Local BAS development uses the UI5 tooling/framework configuration in ui5.yaml.
-		The deployed HTML5 application loads the OpenUI5 1.120.20 runtime from the
-		official OpenUI5 CDN. The version remains explicitly pinned for reproducibility.
+		Local BAS development serves OpenUI5 through the UI5 tooling/framework configuration.
+		The CF build packages the pinned OpenUI5 1.120.20 runtime under resources/ in
+		the application ZIP, so deployment does not depend on CDN version availability.
 	-->
 	<script
 		id="sap-ui-bootstrap"
-		src="https://sdk.openui5.org/1.120.20/resources/sap-ui-core.js"
+		src="resources/sap-ui-core.js"
 		data-sap-ui-theme="sap_horizon"
 		data-sap-ui-resourceroots='{ "integrationpulse": "./" }'
 		data-sap-ui-oninit="module:sap/ui/core/ComponentSupport"

@@ -11,7 +11,7 @@
 		"start:proxy": "node scripts/prepare-development.cjs --local && ui5 serve --config .ui5/ui5.development.yaml --open \"index.html?mock=false&api=proxy\"",
 		"serve": "ui5 serve --port 8080",
 		"build": "ui5 build --clean-dest",
-		"build:cf": "ui5 build --clean-dest --config ui5-deploy.yaml --include-task=generateCachebusterInfo",
+		"build:cf": "ui5 build --all --clean-dest --config ui5-deploy.yaml --include-task=generateCachebusterInfo",
 		"test": "npm run test:frontend && npm run test:backend",
 		"test:frontend": "node --test tests/js/*.test.cjs",
 		"test:backend": "python -m unittest discover -s tests/backend -p test_*.py -v"
