@@ -25,15 +25,25 @@ test('formatters handle missing/unknown statuses, invalid timestamps and SAP dat
   assert.equal(f.dateTime('/Date(1000+0000)/'), new Date(1000).toLocaleString());
   assert.equal(f.duration('bad'), ''); assert.equal(f.duration(1500), '1.5 s'); assert.equal(f.bytes(1024), '1.0 KB');
 });
-test('Home reports failed log requests without fabricating empty histories', async () => {
+test('Home isolates failed log requests and retains every integration row', async () => {
   const h = harness({ overrides: { 'integrationpulse/service/BackendClient': {
     getIntegrationsWithMetadata: () => Promise.resolve([{ id: 'a', sender: 'SAP' }, { id: 'b' }]),
     getMessageLogs: id => id === 'a' ? Promise.resolve([{ messageId: 'old', status: 'FAILED', logEnd: 'bad' }, { messageId: 'new', status: 'COMPLETED', logEnd: '/Date(2000)/' }]) : Promise.reject(new Error('unavailable'))
   } } });
   const { instance, models } = h.controller('Home'); instance._loadLastRuns(); await flush();
   assert.equal(models.home.getProperty('/busy'), false);
-  assert.equal(models.home.getProperty('/lastRuns').length, 0);
-  assert.match(h.notices.flat().join(' '), /Failed to load latest runs: unavailable/);
+  const rows = models.home.getProperty('/lastRuns');
+  assert.equal(rows.length, 2);
+  const succeeded = rows.find(row => row.id === 'a');
+  const failed = rows.find(row => row.id === 'b');
+  assert.equal(succeeded.status, 'COMPLETED');
+  assert.equal(succeeded.messageId, 'new');
+  assert.ok(failed);
+  assert.equal(failed.status, instance.getText('homeNoRunStatus'));
+  assert.equal(failed.messageId, '');
+  assert.equal(failed.time, '');
+  assert.equal(failed.unresolvedIssues, 0);
+  assert.doesNotMatch(h.notices.flat().join(' '), /Failed to load latest runs/);
 });
 test('Monitoring Detail reports unavailable payload service', async () => {
   const h = harness({ overrides: { 'integrationpulse/service/BackendClient': {
